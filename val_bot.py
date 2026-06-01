@@ -121,20 +121,27 @@ async def radar(ctx, riot_id: str = None):
     name, tag = riot_id.split('#', 1)
     await ctx.send(f"📡 正在自動定位 **{name}** 的伺服器地區並讀取戰績，請稍候...")
 
+    t# ... (前面程式碼不變)
+
     try:
-        # 步驟 A：先查玩家基本資料，獲取所在地區
-        account_url = f"https://api.henrikdev.xyz/valorant/v1/account/{name}/{tag}"
+        # --- 步驟 A：先查玩家基本資料 ---
+        # ⚠️ 關鍵修正：將名字進行網址編碼，解決中文名稱報錯問題
+        encoded_name = urllib.parse.quote(name) 
+        
+        # 使用編碼後的名稱去組網址
+        account_url = f"https://api.henrikdev.xyz/valorant/v1/account/{encoded_name}/{tag}"
         acc_response = requests.get(account_url, timeout=10)
         
         if acc_response.status_code != 200:
             print(f"DEBUG: 查帳號失敗，狀態碼: {acc_response.status_code}, 內容: {acc_response.text}")
-            await ctx.send(f"❌ 找不到該帳號 (狀態碼 {acc_response.status_code})，請確認 ID 是否正確。")
+            await ctx.send(f"❌ 找不到該帳號，請確認 ID 是否正確。")
             return
             
         region = acc_response.json()['data']['region']
         
-        # 步驟 B：帶著正確的地區，去查他的真實戰績
-        match_url = f"https://api.henrikdev.xyz/valorant/v1/lifetime/matches/{region}/{name}/{tag}"
+        # --- 步驟 B：抓戰績 ---
+        # ⚠️ 同樣地，這裡也用編碼後的名稱
+        match_url = f"https://api.henrikdev.xyz/valorant/v1/lifetime/matches/{region}/{encoded_name}/{tag}"
         match_response = requests.get(match_url, timeout=10)
         
         if match_response.status_code != 200:
