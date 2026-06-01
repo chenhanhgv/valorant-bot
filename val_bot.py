@@ -1,9 +1,25 @@
 import discord
+from flask import Flask
+from threading import Thread
 from discord.ext import commands
 import requests
 import urllib.parse
 import os # 【新增】跟系統溝通的工具
 from dotenv import load_dotenv # 【新增】讀取密碼本的工具
+# 建立一個迷你的網頁伺服器來欺騙 Render
+app = Flask('')
+
+@app.route('/')
+def home():
+    return "特戰機器人正在雲端守護伺服器！"
+
+def run_server():
+    # 綁定 8080 讓 Render 以為這是一個正常的網站
+    app.run(host='0.0.0.0', port=8080)
+
+# 在背景啟動這個假網頁
+Thread(target=run_server).start()
+
 
 # 讓程式去讀取我們剛剛建立的 .env 檔案
 load_dotenv()
