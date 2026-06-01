@@ -5,6 +5,8 @@ from discord.ext import commands
 import requests
 import urllib.parse
 import os # 【新增】跟系統溝通的工具
+import matplotlib
+matplotlib.use('Agg') # ⚠️ 關鍵：告訴它不要找螢幕！
 import matplotlib.pyplot as plt
 import math
 from dotenv import load_dotenv # 【新增】讀取密碼本的工具
