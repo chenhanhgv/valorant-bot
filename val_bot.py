@@ -50,39 +50,60 @@ async def on_message(message):
         await message.channel.send("又是 Vanguard 搞鬼嗎？重開機治百病啦！")
 
     # 關鍵字 3：【方法一】文字 + 網路圖片 (GIF動圖)
-    if "雷包" in message.content:
-        image_url = "https://media1.giphy.com/media/v1.Y2lkPTZjMDliOTUyazNudzN4dWFpbzJjZjRvem13Znc3MWFzcHB5cTc4cTAwZWdhcW5taiZlcD12MV9naWZzX3NlYXJjaCZjdD1n/TKa7fQzChHylCQ89to/200w.gif"
-        await message.channel.send(f"誰在找雷包？\n{image_url}")
+    if "傻逼" in message.content:
+        # 1. 建立一個乾淨的無字框架
+        embed = discord.Embed()
+        # 2. 把你的 GIF 網址塞進這個框架的圖片區
+        embed.set_image(url="https://media.giphy.com/media/3o7aD2saal6gU54jxe/giphy.gif")
+        
+        # 3. 發送文字，並且「同時」附上這個乾淨的圖片框架！
+        await message.channel.send("誰在找jayyyy", embed=embed)
 
     # ⚠️ 最重要的一行：確保機器人處理完關鍵字後，不會忘記執行 ! 開頭的指令
     await bot.process_commands(message)
 
 
 # ==========================================
-# 5. 特戰英豪主打商店組合包查詢
+# 5. 特戰英豪主打商店組合包查詢 (升級防卡死版本)
 # ==========================================
 @bot.command()
 async def bundle(ctx):
     await ctx.send("🔍 正在連線至 Riot 商店獲取最新組合包...")
     
-    url = "https://api.henrikdev.xyz/valorant/v2/store-featured"
+    # 網址修正為最穩定的 v1 版本
+    url = "https://api.henrikdev.xyz/valorant/v1/store-featured"
     headers = {"Authorization": VALORANT_API_KEY}
     
     try:
-        response = requests.get(url, headers=headers)
-        data = response.json()
-        
-        if response.status_code == 200:
-            bundle_info = data['data'][0]
-            bundle_price = bundle_info['bundle_price']
-            
-            await ctx.send(f"✨ **目前主打組合包！** ✨\n💰 總價格: {bundle_price} 特務幣\n趕快登入遊戲看看吧！")
-        else:
-            await ctx.send("❌ 抓取商店失敗，請稍後再試！")
-            
+        # 改用 aiohttp，這是非同步套件，不會讓機器人傻等卡死
+        import aiohttp
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, headers=headers) as response:
+                
+                # 如果成功抓到資料 (200 OK)
+                if response.status == 200:
+                    data = await response.json()
+                    
+                    # 確保 API 裡面真的有放組合包資料
+                    if len(data.get('data', [])) > 0:
+                        bundle_info = data['data'][0]
+                        # 抓取價格，如果 API 沒寫就顯示未知
+                        bundle_price = bundle_info.get('bundle_price', '未知')
+                        
+                        await ctx.send(f"✨ **目前主打組合包！** ✨\n💰 總價格: {bundle_price} 特務幣\n趕快登入遊戲看看吧！")
+                    else:
+                        await ctx.send("❌ 目前 API 沒有回傳任何主打組合包資料！")
+                        
+                # 密碼錯誤 (401 或 403)
+                elif response.status == 401 or response.status == 403:
+                    await ctx.send("❌ 存取被拒！請檢查你的 HDEV API 密碼是否正確。")
+                    
+                # 其他伺服器錯誤
+                else:
+                    await ctx.send(f"❌ 抓取失敗，伺服器狀態碼：{response.status}")
+                    
     except Exception as e:
-        await ctx.send(f"❌ 發生錯誤：{e}")
-
+        await ctx.send(f"❌ 發生系統錯誤：{e}")
 # ===== 原有的牌位查詢指令 =====
 # 查詢牌位指令：!vgrade 玩家名字#標籤 (例如：!vgrade Tea Latte#0104)
 @bot.command()
