@@ -35,6 +35,53 @@ bot = commands.Bot(command_prefix='!', intents=intents)
 @bot.event
 async def on_ready():
     print(f'成功登入！特戰特工 {bot.user} 已準備部署！')
+@bot.event
+async def on_message(message):
+    # 避免機器人自己回覆自己而無限迴圈
+    if message.author == bot.user:
+        return
+
+    # 關鍵字 1：純文字精準回覆
+    if message.content == "早安":
+        await message.channel.send(f"早安啊 {message.author.mention}！今天準備好爬分了嗎？")
+
+    # 關鍵字 2：包含特定字眼就觸發
+    if "VAN9001" in message.content or "防作弊" in message.content:
+        await message.channel.send("又是 Vanguard 搞鬼嗎？重開機治百病啦！")
+
+    # 關鍵字 3：【方法一】文字 + 網路圖片 (GIF動圖)
+    if "雷包" in message.content:
+        image_url = "https://media1.giphy.com/media/v1.Y2lkPTZjMDliOTUyazNudzN4dWFpbzJjZjRvem13Znc3MWFzcHB5cTc4cTAwZWdhcW5taiZlcD12MV9naWZzX3NlYXJjaCZjdD1n/TKa7fQzChHylCQ89to/200w.gif"
+        await message.channel.send(f"誰在找雷包？\n{image_url}")
+
+    # ⚠️ 最重要的一行：確保機器人處理完關鍵字後，不會忘記執行 ! 開頭的指令
+    await bot.process_commands(message)
+
+
+# ==========================================
+# 5. 特戰英豪主打商店組合包查詢
+# ==========================================
+@bot.command()
+async def bundle(ctx):
+    await ctx.send("🔍 正在連線至 Riot 商店獲取最新組合包...")
+    
+    url = "https://api.henrikdev.xyz/valorant/v2/store-featured"
+    headers = {"Authorization": VALORANT_API_KEY}
+    
+    try:
+        response = requests.get(url, headers=headers)
+        data = response.json()
+        
+        if response.status_code == 200:
+            bundle_info = data['data'][0]
+            bundle_price = bundle_info['bundle_price']
+            
+            await ctx.send(f"✨ **目前主打組合包！** ✨\n💰 總價格: {bundle_price} 特務幣\n趕快登入遊戲看看吧！")
+        else:
+            await ctx.send("❌ 抓取商店失敗，請稍後再試！")
+            
+    except Exception as e:
+        await ctx.send(f"❌ 發生錯誤：{e}")
 
 # ===== 原有的牌位查詢指令 =====
 # 查詢牌位指令：!vgrade 玩家名字#標籤 (例如：!vgrade Tea Latte#0104)
