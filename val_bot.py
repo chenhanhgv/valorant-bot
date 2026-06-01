@@ -5,6 +5,8 @@ from discord.ext import commands
 import requests
 import urllib.parse
 import os # 【新增】跟系統溝通的工具
+import matplotlib.pyplot as plt
+import math
 from dotenv import load_dotenv # 【新增】讀取密碼本的工具
 # 建立一個迷你的網頁伺服器來欺騙 Render
 app = Flask('')
@@ -104,6 +106,41 @@ async def bundle(ctx):
                     
     except Exception as e:
         await ctx.send(f"❌ 發生系統錯誤：{e}")
+# ==========================================
+# 8. 尊爵會員專屬：能力雷達圖生成器
+# ==========================================
+@bot.command()
+async def radar(ctx):
+    # 先發個訊息安撫使用者，因為畫圖需要一兩秒鐘
+    await ctx.send("📊 正在為您生成尊爵版能力雷達圖，請稍候...")
+    
+    # --- 開始畫圖 ---
+    categories = ['Kills', 'Assists', 'Headshot %', 'Econ', 'First Bloods']
+    values = [85, 60, 90, 70, 80] 
+    
+    N = len(categories)
+    angles = [n / float(N) * 2 * math.pi for n in range(N)]
+    angles += angles[:1]
+    values += values[:1]
+    
+    fig, ax = plt.subplots(figsize=(6, 6), subplot_kw=dict(polar=True))
+    ax.plot(angles, values, color='#FF4655', linewidth=2, linestyle='solid')
+    ax.fill(angles, values, color='#FF4655', alpha=0.4)
+    
+    plt.xticks(angles[:-1], categories, fontsize=12, color='black')
+    ax.set_yticklabels([])
+    plt.title("[ Premium ] Player Stats Radar", size=18, weight='bold', color='#333333', y=1.1)
+    
+    # 將圖片存檔在同一個資料夾
+    file_name = 'radar_chart.png'
+    plt.savefig(file_name, bbox_inches='tight')
+    
+    # ⚠️ 超級重要：畫完必須「關閉畫布」！不然下一張圖會跟這張重疊在一起
+    plt.close()
+    
+    # --- 傳送圖片到 Discord ---
+    picture = discord.File(file_name)
+    await ctx.send(f"✨ 您的專屬戰績分析已出爐 {ctx.author.mention}！", file=picture)
 # ===== 原有的牌位查詢指令 =====
 # 查詢牌位指令：!vgrade 玩家名字#標籤 (例如：!vgrade Tea Latte#0104)
 @bot.command()
