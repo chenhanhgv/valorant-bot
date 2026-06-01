@@ -113,55 +113,61 @@ async def bundle(ctx):
 # ==========================================
 @bot.command()
 async def radar(ctx, riot_id: str = None):
-    # 1. 檢查使用者有沒有輸入 Riot ID
+    # 檢查輸入格式
     if riot_id is None or '#' not in riot_id:
         await ctx.send("⚠️ 格式錯誤！請輸入完整的 Riot ID，例如：`!radar 玩家名稱#TW1`")
         return
 
     name, tag = riot_id.split('#', 1)
-    await ctx.send(f"📡 正在潛入 API 資料庫讀取 **{name}** 的真實戰績，並繪製雷達圖，請稍候...")
+    await ctx.send(f"📡 正在自動定位 **{name}** 的伺服器地區並讀取戰績，請稍候...")
 
-    # 2. 串接 API 獲取真實數據
     try:
-        url = f"https://api.henrikdev.xyz/valorant/v1/lifetime/matches/ap/{name}/{tag}"
-        response = requests.get(url, timeout=10)
+        # 步驟 A：先查玩家基本資料，獲取所在地區
+        account_url = f"https://api.henrikdev.xyz/valorant/v1/account/{name}/{tag}"
+        acc_response = requests.get(account_url, timeout=10)
         
-        if response.status_code != 200:
-            await ctx.send("❌ 找不到該玩家或 API 暫時無法連線，請確認 ID 是否正確。")
+        if acc_response.status_code != 200:
+            print(f"DEBUG: 查帳號失敗，狀態碼: {acc_response.status_code}, 內容: {acc_response.text}")
+            await ctx.send(f"❌ 找不到該帳號 (狀態碼 {acc_response.status_code})，請確認 ID 是否正確。")
             return
             
-        data = response.json()['data']
+        region = acc_response.json()['data']['region']
         
-        # 如果玩家是新帳號，沒有近期對戰紀錄
+        # 步驟 B：帶著正確的地區，去查他的真實戰績
+        match_url = f"https://api.henrikdev.xyz/valorant/v1/lifetime/matches/{region}/{name}/{tag}"
+        match_response = requests.get(match_url, timeout=10)
+        
+        if match_response.status_code != 200:
+            print(f"DEBUG: 抓戰績失敗，狀態碼: {match_response.status_code}, 內容: {match_response.text}")
+            await ctx.send(f"❌ 查戰績失敗 (狀態碼 {match_response.status_code})。")
+            return
+            
+        data = match_response.json()['data']
         if not data:
-            await ctx.send("❌ 查無近期對戰紀錄。")
+            await ctx.send("❌ 該帳號查無近期對戰紀錄。")
             return
 
-        # 3. 數據萃取：取出最近一場對戰的真實數據
+        # 數據萃取 (取最近一場)
         latest_match = data[0]['stats']
         real_kills = latest_match['kills']
         real_assists = latest_match['assists']
         real_score = latest_match['score']
         
-        # 爆頭率需要自己計算：爆頭數 / 總命中數
+        # 計算爆頭率
         total_shots = latest_match['shots']['head'] + latest_match['shots']['body'] + latest_match['shots']['leg']
         headshot_percent = (latest_match['shots']['head'] / total_shots) * 100 if total_shots > 0 else 0
 
-        # 4. 數據轉換引擎 (將真實數值換算為 0-100 分)
-        # 設定各項目的「滿分標準」
-        # 假設一場殺 30 人算 100 分，爆頭率 40% 算 100 分
+        # 數據轉換引擎 (0-100 分)
         score_kills = min(100, (real_kills / 30) * 100)
         score_assists = min(100, (real_assists / 15) * 100)
         score_hs = min(100, (headshot_percent / 40) * 100)
-        score_combat = min(100, (real_score / 8000) * 100) # 假設整場總分 8000 是極限
-        # 綜合表現我們用前四項的平均來當最後一個維度
+        score_combat = min(100, (real_score / 8000) * 100)
         score_overall = (score_kills + score_assists + score_hs + score_combat) / 4
 
-        # 準備畫圖的陣列
+        # 啟動繪圖引擎
         categories = ['擊殺爆發力', '團隊助攻', '精準爆頭率', '戰鬥總分', '綜合表現']
         values = [score_kills, score_assists, score_hs, score_combat, score_overall]
 
-        # 5. 啟動繪圖引擎
         N = len(categories)
         angles = [n / float(N) * 2 * math.pi for n in range(N)]
         angles += angles[:1]
@@ -173,21 +179,19 @@ async def radar(ctx, riot_id: str = None):
 
         plt.xticks(angles[:-1], categories, fontsize=12, color='black')
         ax.set_yticklabels([])
-        
-        # 把玩家的名字直接印在圖表標題上！
-        plt.title(f"【 {name} 】專屬能力雷達圖", size=18, weight='bold', color='#333333', y=1.1)
+        plt.title(f"【 {name} 】能力雷達圖 ({region.upper()})", size=18, weight='bold', color='#333333', y=1.1)
 
         file_name = 'radar_chart.png'
         plt.savefig(file_name, bbox_inches='tight')
-        plt.close() # ⚠️ 關閉畫布釋放記憶體
+        plt.close() 
 
-        # 6. 發送到 Discord
+        # 發送到 Discord
         picture = discord.File(file_name)
         await ctx.send(f"✨ {ctx.author.mention}，戰績分析完成！\n這場他拿了 **{real_kills} 殺**，爆頭率高達 **{headshot_percent:.1f}%**！", file=picture)
 
     except Exception as e:
-        print(f"雷達圖生成失敗: {e}")
-        await ctx.send("⚠️ 處理數據時發生錯誤，請稍後再試。")
+        print(f"雷達圖系統錯誤: {e}")
+        await ctx.send("⚠️ 系統發生錯誤，請稍後再試。")
 # ===== 原有的牌位查詢指令 =====
 # 查詢牌位指令：!vgrade 玩家名字#標籤 (例如：!vgrade Tea Latte#0104)
 @bot.command()
