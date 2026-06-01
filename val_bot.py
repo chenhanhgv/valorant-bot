@@ -62,6 +62,14 @@ async def on_message(message):
         
         # 3. 發送文字，並且「同時」附上這個乾淨的圖片框架！
         await message.channel.send("誰在找jayyyy", embed=embed)
+    if "憨仔" in message.content:
+        # 1. 建立一個乾淨的無字框架
+        embed = discord.Embed()
+        # 2. 把你的 GIF 網址塞進這個框架的圖片區
+        embed.set_image(url="https://s1.aigei.com/src/img/gif/46/46a1b81cde50407982da18d76b651dcf.gif?e=2051020800&token=P7S2Xpzfz11vAkASLTkfHN7Fw-oOZBecqeJaxypL:K5m3jpqMlPrNV-mjz5ONf9znTOw=")
+        
+        # 3. 發送文字，並且「同時」附上這個乾淨的圖片框架！
+        await message.channel.send("除聖傑說柯柏宏是憨仔", embed=embed)
 
     # ⚠️ 最重要的一行：確保機器人處理完關鍵字後，不會忘記執行 ! 開頭的指令
     await bot.process_commands(message)
