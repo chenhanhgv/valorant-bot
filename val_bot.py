@@ -54,7 +54,7 @@ async def on_message(message):
         # 1. 建立一個乾淨的無字框架
         embed = discord.Embed()
         # 2. 把你的 GIF 網址塞進這個框架的圖片區
-        embed.set_image(url="https://media.giphy.com/media/3o7aD2saal6gU54jxe/giphy.gif")
+        embed.set_image(url="https://media1.giphy.com/media/v1.Y2lkPTZjMDliOTUyazNudzN4dWFpbzJjZjRvem13Znc3MWFzcHB5cTc4cTAwZWdhcW5taiZlcD12MV9naWZzX3NlYXJjaCZjdD1n/TKa7fQzChHylCQ89to/200w.gif")
         
         # 3. 發送文字，並且「同時」附上這個乾淨的圖片框架！
         await message.channel.send("誰在找jayyyy", embed=embed)
