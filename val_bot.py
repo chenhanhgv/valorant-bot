@@ -427,55 +427,171 @@ async def vhistory(ctx, *, riot_id: str):
         print(f"錯誤訊息: {e}")
         await ctx.send("⚠️ 讀取歷史資料失敗，請稍後再試。")
 # ==========================================
-# 9. 互動式圖形介面：戰術終端機選單
+# 9. 互動式圖形介面：戰術終端機選單 (完全合體版)
 # ==========================================
 
-# --- 步驟 A：設計彈出視窗 (Modal) ---
-# 當玩家想查戰績時，彈出這個視窗讓他們輸入 ID
+# --- 步驟 A：彈出視窗 (負責畫雷達圖) ---
 class RadarModal(Modal, title='📊 查詢戰績雷達圖'):
-    # 設計一個文字輸入框
     riot_id_input = TextInput(
         label='請輸入您的 Riot ID',
         placeholder='例如：絕境大蕃薯#0313',
-        required=True, # 必填
+        required=True,
         max_length=30
     )
 
-    # 當玩家按下「提交」後會執行的動作
     async def on_submit(self, interaction: discord.Interaction):
-        user_input = self.riot_id_input.value
-        # ephemeral=True 是一個黑科技，代表「這則訊息只有點按鈕的人自己看得到」！
-        await interaction.response.send_message(
-            f"✅ 系統已接收到 ID：`{user_input}`！\n*(註：按鈕與輸入框測試成功！下一步我們就可以把畫圖引擎接進來了)*", 
-            ephemeral=True
-        )
+        # 1. 爭取時間：先發送一條訊息，避免 3 秒超時
+        await interaction.response.send_message(f"📡 正在為 `{self.riot_id_input.value}` 讀取近 5 場戰績並生成雷達圖，請稍候...", ephemeral=False)
+        
+        riot_id = self.riot_id_input.value
+        name, tag = riot_id.split('#')[0].strip(), riot_id.split('#')[1].strip() if '#' in riot_id else ("", "")
+        
+        if not name or not tag:
+            await interaction.followup.send("⚠️ 格式錯誤！請輸入完整的 Riot ID，例如：玩家名稱#TW1")
+            return
 
-# --- 步驟 B：設計按鈕選單 (View) ---
+        try:
+            import urllib.parse
+            import urllib.request
+            import os
+            from matplotlib import font_manager
+            import matplotlib.pyplot as plt
+            import math
+            import requests
+
+            # 下載字體
+            font_path = 'NotoSansTC.otf'
+            if not os.path.exists(font_path):
+                font_url = 'https://raw.githubusercontent.com/googlefonts/noto-cjk/main/Sans/OTF/TraditionalChinese/NotoSansCJKtc-Regular.otf'
+                urllib.request.urlretrieve(font_url, font_path)
+            my_font = font_manager.FontProperties(fname=font_path)
+
+            # 抓取 5 場戰績
+            encoded_name, encoded_tag = urllib.parse.quote(name), urllib.parse.quote(tag)
+            match_url = f"https://api.henrikdev.xyz/valorant/v3/matches/ap/{encoded_name}/{encoded_tag}?size=5"
+            headers = {"Authorization": API_KEY}
+            match_response = requests.get(match_url, headers=headers, timeout=15)
+            
+            if match_response.status_code == 200:
+                matches = match_response.json().get('data')
+                if not matches:
+                    await interaction.followup.send("❌ 該帳號查無近期對戰紀錄。")
+                    return
+
+                # 計算平均
+                match_count = len(matches)
+                total_kills, total_assists, total_score, total_headshots, total_shots = 0, 0, 0, 0, 0
+                for match in matches:
+                    for p in match['players']['all_players']:
+                        if p['name'].lower() == name.lower():
+                            stats = p['stats']
+                            total_kills += stats.get('kills', 0)
+                            total_assists += stats.get('assists', 0)
+                            total_score += stats.get('score', 0)
+                            total_headshots += stats.get('headshots', 0)
+                            total_shots += (stats.get('headshots', 0) + stats.get('bodyshots', 0) + stats.get('legshots', 0))
+                            break
+
+                avg_kills = total_kills / match_count
+                avg_assists = total_assists / match_count
+                avg_score = total_score / match_count
+                headshot_percent = (total_headshots / total_shots) * 100 if total_shots > 0 else 0
+
+                # 畫圖
+                score_kills = min(100, (avg_kills / 25) * 100) 
+                score_assists = min(100, (avg_assists / 10) * 100)
+                score_hs = min(100, (headshot_percent / 40) * 100)
+                score_combat = min(100, (avg_score / 6000) * 100) 
+                score_overall = (score_kills + score_assists + score_hs + score_combat) / 4
+
+                categories = ['擊殺爆發力', '團隊助攻', '精準爆頭率', '戰鬥總分', '綜合表現']
+                values = [score_kills, score_assists, score_hs, score_combat, score_overall]
+                N = len(categories)
+                angles = [n / float(N) * 2 * math.pi for n in range(N)]
+                angles += angles[:1]
+                values += values[:1]
+
+                fig, ax = plt.subplots(figsize=(6, 6), subplot_kw=dict(polar=True))
+                ax.plot(angles, values, color='#FF4655', linewidth=2, linestyle='solid')
+                ax.fill(angles, values, color='#FF4655', alpha=0.4)
+                plt.xticks(angles[:-1], categories, fontsize=12, color='black', fontproperties=my_font)
+                ax.set_yticklabels([])
+                plt.title(f"【 {name} 】近 {match_count} 場平均戰力分析", size=18, weight='bold', color='#333333', y=1.1, fontproperties=my_font)
+
+                file_name = 'radar_chart.png'
+                plt.savefig(file_name, bbox_inches='tight')
+                plt.close() 
+
+                # 2. 由於前面已經 send_message，這裡必須用 followup.send 來補發圖片
+                picture = discord.File(file_name)
+                msg = (f"✨ {interaction.user.mention}，戰力分析完成！\n"
+                       f"場均擊殺：**{avg_kills:.1f}** 殺 │ 平均爆頭率：**{headshot_percent:.1f}%**")
+                await interaction.followup.send(content=msg, file=picture)
+            else:
+                await interaction.followup.send(f"❌ 查無戰績 (狀態碼 {match_response.status_code})。")
+        except Exception as e:
+            print(f"雷達圖按鈕錯誤: {e}")
+            await interaction.followup.send("⚠️ 系統發生錯誤，請稍後再試。")
+
+# --- 步驟 B：按鈕選單 (負責商店與呼叫雷達圖) ---
 class ValoMenu(View):
     def __init__(self):
-        super().__init__(timeout=None) # timeout=None 代表這排按鈕永遠不會過期
+        super().__init__(timeout=None) 
 
-    # 第一個按鈕：商店查詢 (藍色按鈕)
+    # 🛍️ 商店按鈕
     @discord.ui.button(label="查看今日組合包", style=discord.ButtonStyle.blurple, emoji="🛍️")
     async def bundle_btn(self, interaction: discord.Interaction, button: Button):
-        await interaction.response.send_message("🎁 您點擊了商店按鈕！*(UI 測試成功)*", ephemeral=True)
+        # 1. 爭取時間 (因為我們沒有要彈出視窗，所以用 defer)
+        await interaction.response.defer(ephemeral=False)
+        
+        try:
+            import requests 
+            import discord 
+            
+            url = "https://api.henrikdev.xyz/valorant/v1/store-featured"
+            headers = {"Authorization": API_KEY} 
+            response = requests.get(url, headers=headers, timeout=10)
+            
+            if response.status_code == 200:
+                bundle_info = response.json()['data'][0] if isinstance(response.json()['data'], list) else response.json()['data']
+                items = bundle_info.get('FeaturedBundle', {}).get('Bundle', {}).get('Items', []) or bundle_info.get('Bundle', {}).get('Items', [])
+                bundle_id = bundle_info.get('FeaturedBundle', {}).get('Bundle', {}).get('DataAssetID', '') or bundle_info.get('Bundle', {}).get('DataAssetID', '')
+                
+                total_price = sum(int(item.get('DiscountedPrice', 0)) for item in items)
+                
+                bundle_name, bundle_image = "未知主打組合包", ""
+                if bundle_id:
+                    asset_res = requests.get(f"https://valorant-api.com/v1/bundles/{bundle_id}?language=zh-TW", timeout=10)
+                    if asset_res.status_code == 200:
+                        bundle_name = asset_res.json().get('data', {}).get('displayName', bundle_name)
+                        bundle_image = asset_res.json().get('data', {}).get('displayIcon', '') 
+                
+                embed = discord.Embed(title=f"✨ 本期主打：【 {bundle_name} 】", description="趕快登入遊戲查看詳細內容吧！", color=0xFF4655)
+                embed.add_field(name="💰 總價格", value=f"**{total_price} VP**", inline=False)
+                if bundle_image: embed.set_image(url=bundle_image)
+                
+                # 2. 處理完畢，補發圖文框給玩家
+                await interaction.followup.send(embed=embed)
+            else:
+                await interaction.followup.send("❌ 抓取商店失敗。")
+        except Exception as e:
+            print(f"商店按鈕錯誤: {e}")
+            await interaction.followup.send("⚠️ 系統發生錯誤。")
 
-    # 第二個按鈕：戰績查詢 (紅色按鈕)
+    # 🎯 戰績按鈕
     @discord.ui.button(label="生成雷達圖", style=discord.ButtonStyle.red, emoji="🎯")
     async def radar_btn(self, interaction: discord.Interaction, button: Button):
-        # 當點擊戰績按鈕時，呼叫並彈出剛剛寫好的 RadarModal 視窗
+        # 呼叫並彈出 RadarModal 視窗
         await interaction.response.send_modal(RadarModal())
 
-# --- 步驟 C：建立觸發選單的指令 ---
+# --- 步驟 C：觸發選單的指令 ---
 @bot.command()
 async def menu(ctx):
-    # 製作一個簡單的圖文框當作選單背景
     embed = discord.Embed(
         title="🎮 特戰英豪戰術終端機",
-        description="歡迎使用系統！請點擊下方的按鈕來操作：",
-        color=0x2b2d31 # 這個顏色會完美融入 Discord 的深色背景
+        description="歡迎使用系統！請點擊下方的按鈕來操作：\n\n🛍️ **查看今日組合包**：顯示目前架上的主打商品\n🎯 **生成雷達圖**：輸入 ID 查詢近 5 場戰力平均",
+        color=0x2b2d31 
     )
-    # 關鍵：發送訊息時，把我們設計好的 ValoMenu 裝上去 (view=ValoMenu())
     await ctx.send(embed=embed, view=ValoMenu())
 
 bot.run(TOKEN)
