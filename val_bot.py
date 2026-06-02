@@ -117,7 +117,7 @@ async def bundle(ctx):
     except Exception as e:
         await ctx.send(f"❌ 發生系統錯誤：{e}")
 # ==========================================
-# 8. 尊爵會員專屬：能力雷達圖 (v3 突破封鎖版)
+# 8. 尊爵會員專屬：能力雷達圖 (金鑰授權 + v3 直通版)
 # ==========================================
 @bot.command()
 async def radar(ctx, *, riot_id: str = None):
@@ -129,35 +129,41 @@ async def radar(ctx, *, riot_id: str = None):
     name = parts[0].strip()
     tag = parts[1].strip()
     
-    await ctx.send(f"📡 正在切換至 v3 備用資料庫，讀取 **{name}** 的真實戰績，請稍候...")
+    await ctx.send(f"📡 正在出示通行證，潛入資料庫讀取 **{name}** 的真實戰績，請稍候...")
 
     try:
         import urllib.parse
         encoded_name = urllib.parse.quote(name)
+        encoded_tag = urllib.parse.quote(tag) # 順便把 tag 也編碼，更安全
         
-        region = 'ap'
+        # 走 v3 路線，並加上 size=1 只抓最新一場減輕伺服器負擔
+        match_url = f"https://api.henrikdev.xyz/valorant/v3/matches/ap/{encoded_name}/{encoded_tag}?size=1"
         
-        # 🌟 關鍵修正：將網址替換為目前開放且穩定的 v3 版本
-        match_url = f"https://api.henrikdev.xyz/valorant/v3/matches/{region}/{encoded_name}/{tag}"
-        match_response = requests.get(match_url, timeout=10)
+        # 🔑 關鍵移植：把你的 API_KEY 夾帶進去！
+        headers = {
+            "Authorization": API_KEY
+        }
+        
+        # 發送請求時，一併遞交通行證 (headers=headers)
+        match_response = requests.get(match_url, headers=headers, timeout=10)
         
         if match_response.status_code != 200:
             print(f"DEBUG: 抓戰績失敗，狀態碼: {match_response.status_code}, 內容: {match_response.text}")
-            await ctx.send(f"❌ 查無戰績 (API 狀態碼 {match_response.status_code})。")
+            await ctx.send(f"❌ 查無戰績或通行證失效 (API 狀態碼 {match_response.status_code})。")
             return
             
-        data = match_response.json()['data']
+        data = match_response.json().get('data')
         if not data:
             await ctx.send("❌ 該帳號查無近期對戰紀錄，無法繪製雷達圖。")
             return
 
-        # --- v3 API 專屬數據萃取邏輯 ---
+        # --- v3 數據萃取邏輯 ---
         latest_match = data[0]
         
-        # v3 版本的 JSON 結構不同，必須在所有玩家名單中尋找目標玩家
+        # 在名單中尋找目標玩家
         player_stats = None
         for p in latest_match['players']['all_players']:
-            if p['name'].lower() == name.lower() and p['tag'].lower() == tag.lower():
+            if p['name'].lower() == name.lower():
                 player_stats = p['stats']
                 break
 
@@ -166,14 +172,14 @@ async def radar(ctx, *, riot_id: str = None):
             return
 
         # 讀取真實數值
-        real_kills = player_stats['kills']
-        real_assists = player_stats['assists']
-        real_score = player_stats['score']
+        real_kills = player_stats.get('kills', 0)
+        real_assists = player_stats.get('assists', 0)
+        real_score = player_stats.get('score', 0)
         
-        # v3 的爆頭數據計算方式
-        headshots = player_stats['headshots']
-        bodyshots = player_stats['bodyshots']
-        legshots = player_stats['legshots']
+        # v3 爆頭數據
+        headshots = player_stats.get('headshots', 0)
+        bodyshots = player_stats.get('bodyshots', 0)
+        legshots = player_stats.get('legshots', 0)
         total_shots = headshots + bodyshots + legshots
         headshot_percent = (headshots / total_shots) * 100 if total_shots > 0 else 0
 
