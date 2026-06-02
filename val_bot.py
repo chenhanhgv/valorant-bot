@@ -243,7 +243,7 @@ class EsportsModal(Modal, title='📺 查詢 VCT 電競賽程'):
 
         try:
             url = "https://vlrggapi.vercel.app/match?q=upcoming"
-            res = requests.get(url, timeout=25)
+            res = requests.get(url, timeout=10)
             
             if res.status_code == 200 and res.json().get('data'):
                 all_matches = res.json()['data'].get('segments', [])
@@ -328,9 +328,12 @@ class EsportsModal(Modal, title='📺 查詢 VCT 電競賽程'):
                 await interaction.followup.send(embed=embed)
             else:
                 await interaction.followup.send("❌ 無法取得賽事資料，請稍後再試。")
+        except requests.exceptions.Timeout:
+            print("賽事查詢錯誤: 連線 VLR.gg 伺服器超時。")
+            await interaction.followup.send("⚠️ 賽事資料庫 (VLR.gg) 目前正處於高流量或維護中，系統無法順利連線，請稍後再試！")
         except Exception as e:
             print(f"賽事查詢錯誤: {e}")
-            await interaction.followup.send("⚠️ 系統擷取電競資料庫時發生錯誤。")
+            await interaction.followup.send("⚠️ 系統擷取電競資料庫時發生未知的系統錯誤。")
 
 
 # --- 模組 B：終極按鈕主選單 ---
