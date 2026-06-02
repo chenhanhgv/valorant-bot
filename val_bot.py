@@ -280,12 +280,18 @@ class EsportsModal(Modal, title='📺 查詢 VCT 電競賽程'):
                 for match in display_matches:
                     team1 = match.get('team1', 'TBD')
                     team2 = match.get('team2', 'TBD')
-                    event = match.get('tournament_name', '未知賽事')
-                    time_info = match.get('time', '時間未定')
+                    
+                    # 🌟 關鍵修復：換成正確的 API 標籤名稱，並加上比賽階段 (series)
+                    event = match.get('match_event', '未知賽事')
+                    series = match.get('match_series', '')
+                    time_info = match.get('time_until_match', '時間未定')
+                    
+                    # 將賽事名稱與階段組合在一起顯示
+                    event_display = f"{event} - {series}" if series else event
                     
                     embed.add_field(
                         name=f"⚔️ {team1}  vs  {team2}",
-                        value=f"🏆 {event}\n⏰ {time_info}",
+                        value=f"🏆 {event_display}\n⏰ {time_info}",
                         inline=False
                     )
                     
