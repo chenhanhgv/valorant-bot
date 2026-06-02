@@ -117,37 +117,33 @@ async def bundle(ctx):
     except Exception as e:
         await ctx.send(f"❌ 發生系統錯誤：{e}")
 # ==========================================
+# 8. 尊爵會員專屬：能力雷達圖 (v3 突破封鎖版)
 # ==========================================
-# 8. 尊爵會員專屬：能力雷達圖 (亞服直通版)
-# ==========================================
-# ⚠️ 注意 ctx 後面的 *, riot_id，這個 * 號可以完美吸收所有空格！
 @bot.command()
 async def radar(ctx, *, riot_id: str = None):
     if riot_id is None or '#' not in riot_id:
         await ctx.send("⚠️ 格式錯誤！請輸入完整的 Riot ID，例如：`!radar 玩家名稱#TW1`")
         return
 
-    # 自動過濾掉多餘的空格
     parts = riot_id.split('#', 1)
     name = parts[0].strip()
     tag = parts[1].strip()
     
-    await ctx.send(f"📡 正在直接潛入亞太 (AP) 資料庫，讀取 **{name}** 的真實戰績，請稍候...")
+    await ctx.send(f"📡 正在切換至 v3 備用資料庫，讀取 **{name}** 的真實戰績，請稍候...")
 
     try:
         import urllib.parse
         encoded_name = urllib.parse.quote(name)
         
-        # --- 捨棄步驟 A，直接強制定義伺服器為 'ap' ---
         region = 'ap'
         
-        # --- 直接執行步驟 B：抓取近期戰績 ---
-        match_url = f"https://api.henrikdev.xyz/valorant/v1/lifetime/matches/{region}/{encoded_name}/{tag}"
+        # 🌟 關鍵修正：將網址替換為目前開放且穩定的 v3 版本
+        match_url = f"https://api.henrikdev.xyz/valorant/v3/matches/{region}/{encoded_name}/{tag}"
         match_response = requests.get(match_url, timeout=10)
         
         if match_response.status_code != 200:
             print(f"DEBUG: 抓戰績失敗，狀態碼: {match_response.status_code}, 內容: {match_response.text}")
-            await ctx.send(f"❌ 查無戰績 (API 狀態碼 {match_response.status_code})。這通常是因為該玩家近期沒有公開的對戰紀錄。")
+            await ctx.send(f"❌ 查無戰績 (API 狀態碼 {match_response.status_code})。")
             return
             
         data = match_response.json()['data']
@@ -155,15 +151,33 @@ async def radar(ctx, *, riot_id: str = None):
             await ctx.send("❌ 該帳號查無近期對戰紀錄，無法繪製雷達圖。")
             return
 
-        # --- 數據萃取與轉換 ---
-        latest_match = data[0]['stats']
-        real_kills = latest_match['kills']
-        real_assists = latest_match['assists']
-        real_score = latest_match['score']
+        # --- v3 API 專屬數據萃取邏輯 ---
+        latest_match = data[0]
         
-        total_shots = latest_match['shots']['head'] + latest_match['shots']['body'] + latest_match['shots']['leg']
-        headshot_percent = (latest_match['shots']['head'] / total_shots) * 100 if total_shots > 0 else 0
+        # v3 版本的 JSON 結構不同，必須在所有玩家名單中尋找目標玩家
+        player_stats = None
+        for p in latest_match['players']['all_players']:
+            if p['name'].lower() == name.lower() and p['tag'].lower() == tag.lower():
+                player_stats = p['stats']
+                break
 
+        if not player_stats:
+            await ctx.send("❌ 無法在該場對戰中找到此玩家的具體數據。")
+            return
+
+        # 讀取真實數值
+        real_kills = player_stats['kills']
+        real_assists = player_stats['assists']
+        real_score = player_stats['score']
+        
+        # v3 的爆頭數據計算方式
+        headshots = player_stats['headshots']
+        bodyshots = player_stats['bodyshots']
+        legshots = player_stats['legshots']
+        total_shots = headshots + bodyshots + legshots
+        headshot_percent = (headshots / total_shots) * 100 if total_shots > 0 else 0
+
+        # --- 數據轉換引擎 (0-100 分) ---
         score_kills = min(100, (real_kills / 30) * 100)
         score_assists = min(100, (real_assists / 15) * 100)
         score_hs = min(100, (headshot_percent / 40) * 100)
