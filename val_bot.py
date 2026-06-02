@@ -80,7 +80,7 @@ async def on_message(message):
 
 
 # ==========================================
-# 9. 互動式圖形介面：特戰英豪全功能戰術終端機 (智慧搜尋版)
+# 9. 互動式圖形介面：特戰英豪全功能戰術終端機 (終極穩定版)
 # ==========================================
 import discord
 from discord.ext import commands
@@ -224,117 +224,6 @@ class RankModal(Modal, title='🏆 查詢目前牌位'):
         except Exception as e:
             await interaction.followup.send(f"⚠️ 查詢失敗。")
 
-# --- 🌟 模組 A4：電競賽事智慧搜尋視窗 (Tier 1 頂級賽事過濾版) ---
-class EsportsModal(Modal, title='📺 查詢 VCT 電競賽程'):
-    team_input = TextInput(
-        label='欲查詢的戰隊名稱 (留空則顯示所有近期賽事)', 
-        placeholder='例如：PRX 或 SEN (不分大小寫)', 
-        required=False, 
-        max_length=20
-    )
-
-    async def on_submit(self, interaction: discord.Interaction):
-        search_team = self.team_input.value.strip().lower()
-        
-        if search_team:
-            await interaction.response.send_message(f"🔍 正在搜尋戰隊 【{self.team_input.value.upper()}】 的近期賽程...", ephemeral=False)
-        else:
-            await interaction.response.send_message("📡 正在過濾並獲取最新 VCT 【頂級一級賽事】 賽程表...", ephemeral=False)
-
-        try:
-            url = "https://vlrggapi.vercel.app/match?q=upcoming"
-            res = requests.get(url, timeout=10)
-            
-            if res.status_code == 200 and res.json().get('data'):
-                all_matches = res.json()['data'].get('segments', [])
-                
-                # 🌟 定義 Tier 1 (頂級賽事) 的關鍵字白名單
-                tier1_keywords = ["masters", "champions", "pacific", "americas", "emea", "china"]
-                
-                filtered_matches = []
-                for match in all_matches:
-                    # 🌟 防彈升級 1：確保拿到的絕對是字串，才做 .lower()
-                    raw_event = str(match.get('match_event') or '').lower()
-                    t1 = str(match.get('team1') or 'TBD').lower()
-                    t2 = str(match.get('team2') or 'TBD').lower()
-                    
-                    if search_team:
-                        if search_team in t1 or search_team in t2:
-                            filtered_matches.append(match)
-                    else:
-                        is_tier1 = any(kw in raw_event for kw in tier1_keywords)
-                        if is_tier1 and "challengers" not in raw_event and "game changers" not in raw_event:
-                            filtered_matches.append(match)
-                
-                if not filtered_matches:
-                    msg = f"❌ 抱歉，找不到與「{self.team_input.value}」相關的比賽。" if search_team else "❌ 目前近期內沒有即將開打的 VCT 頂級一級賽事。"
-                    await interaction.followup.send(msg)
-                    return
-
-                display_matches = filtered_matches[:5]
-                
-                embed = discord.Embed(
-                    title="📺 VCT 頂級職業賽程表" if not search_team else f"📺 【{self.team_input.value.upper()}】 專屬賽程篩選結果",
-                    description="資料即時連線自 VLR.gg 數據庫",
-                    color=0x9b59b6
-                )
-                
-                def translate_terms(text):
-                    terms = {
-                        "Masters": "大師賽",
-                        "Champions": "世界冠軍賽",
-                        "Challengers": "挑戰者聯賽",
-                        "Playoffs": "季後賽",
-                        "Group Stage": "小組賽",
-                        "Swiss Stage": "瑞士輪",
-                        "Regular Phase": "例行賽",
-                        "Upper Semifinals": "勝部準決賽",
-                        "Lower Semifinals": "敗部準決賽",
-                        "Grand Final": "總決賽",
-                        "Kickoff": "啟動賽",
-                        "Pacific": "太平洋賽區",
-                        "Americas": "美洲賽區",
-                        "EMEA": "歐洲賽區",
-                        "China": "中國賽區",
-                        "Week": "第",
-                        "Round": "第",
-                        "Stage": "階段"
-                    }
-                    for eng, chi in terms.items():
-                        text = text.replace(eng, chi)
-                    return text
-
-                for match in display_matches:
-                    team1 = str(match.get('team1') or 'TBD')
-                    team2 = str(match.get('team2') or 'TBD')
-                    
-                    # 🌟 防彈升級 2：確保翻譯和替換文字時，絕對是字串
-                    raw_event = str(match.get('match_event') or '未知賽事')
-                    raw_series = str(match.get('match_series') or '')
-                    
-                    event = translate_terms(raw_event)
-                    series = translate_terms(raw_series)
-                    event_display = f"{event} - {series}" if series else event
-                    
-                    raw_time = str(match.get('time_until_match') or '時間未定')
-                    time_info = raw_time.replace('from now', '後開打').replace('d', '天').replace('h', '小時').replace('m', '分鐘')
-                    
-                    embed.add_field(
-                        name=f"⚔️ {team1}  vs  {team2}",
-                        value=f"🏆 {event_display}\n⏰ {time_info}",
-                        inline=False
-                    )
-                    
-                await interaction.followup.send(embed=embed)
-            else:
-                await interaction.followup.send("❌ 無法取得賽事資料，請稍後再試。")
-        except requests.exceptions.Timeout:
-            print("賽事查詢錯誤: 連線 VLR.gg 伺服器超時。")
-            await interaction.followup.send("⚠️ 賽事資料庫 (VLR.gg) 目前正處於高流量或維護中，系統無法順利連線，請稍後再試！")
-        except Exception as e:
-            print(f"賽事查詢錯誤: {e}")
-            await interaction.followup.send("⚠️ 系統擷取電競資料庫時發生未知的系統錯誤。")
-
 
 # --- 模組 B：終極按鈕主選單 ---
 class ValoMenu(View):
@@ -376,7 +265,7 @@ class ValoMenu(View):
     async def radar_btn(self, interaction: discord.Interaction, button: Button):
         await interaction.response.send_modal(RadarModal())
 
-    # 按鈕 3：歷史戰報 (綠色)
+    # 按鈕 3：歷史戰報 (慢速綠)
     @discord.ui.button(label="最新戰報", style=discord.ButtonStyle.green, emoji="⚔️")
     async def history_btn(self, interaction: discord.Interaction, button: Button):
         await interaction.response.send_modal(HistoryModal())
@@ -386,22 +275,43 @@ class ValoMenu(View):
     async def rank_btn(self, interaction: discord.Interaction, button: Button):
         await interaction.response.send_modal(RankModal())
 
-    # 按鈕 5：電競賽事 (紫色) - 🌟 升級為呼叫彈出式搜尋視窗
-    @discord.ui.button(label="近期賽事", style=discord.ButtonStyle.primary, emoji="📺")
+    # 按鈕 5：賽事導航中心 (紫色) - 🌟 降級容錯優化：改為永不當機的秒回導航面板
+    @discord.ui.button(label="賽事導航中心", style=discord.ButtonStyle.primary, emoji="📺")
     async def esports_btn(self, interaction: discord.Interaction, button: Button):
-        await interaction.response.send_modal(EsportsModal())
+        embed = discord.Embed(
+            title="🏆 特戰英豪 VCT 賽事導航",
+            description="目前正值大型國際賽事期間，為確保您能光速獲取最新資訊，系統已為您整理好權威賽事網站與中文轉播頻道：",
+            color=0x9b59b6
+        )
+        embed.set_thumbnail(url="https://images.contentstack.io/v3/assets/bltb6530b271fddd0b1/blt727f711204128529/63897b7cb78e2410a516eefb/VALORANT_VCT_Logo_1.1.png")
+
+        embed.add_field(
+            name="🔴 官方中文直播頻道",
+            value="📺 [Twitch 特戰英豪中文台](https://www.twitch.tv/valorant_tw)\n▶️ [YouTube 官方賽事直播頻道](https://www.youtube.com/@VALORANTEsportsTW)",
+            inline=False
+        )
+        embed.add_field(
+            name="📅 賽程表、樹狀圖與即時數據",
+            value="📊 [VLR.gg (全球最大電競數據庫)](https://www.vlr.gg/matches)\n📖 [Liquipedia (最詳盡戰隊勝負樹狀圖)](https://liquipedia.net/valorant/Main_Page)",
+            inline=False
+        )
+        embed.set_footer(text="💡 小提示：點擊上方藍色字體即可直達該網站。")
+        
+        # ephemeral=True 確保這個導航面板只有點擊的人看得到，保護群組不被洗版
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
 
 # --- 模組 C：觸發主選單指令 ---
 @bot.command()
 async def menu(ctx):
     embed = discord.Embed(
         title="🎮 特戰英豪戰術終端機 (All-in-One)",
-        description="指揮官，系統已上線。請點擊下方的按鈕選擇您需要的服務：\n\n"
-                    "🛍️ **今日組合包**：免輸入，直接讀取今日商店大包\n"
-                    "🎯 **戰力雷達圖**：輸入 ID，生成近 5 場戰力六角圖\n"
-                    "⚔️ **最新戰報**：輸入 ID，取得上一場對戰詳細 KDA\n"
-                    "🏆 **牌位查詢**：輸入 ID，查詢目前階級與系統總分\n"
-                    "📺 **近期賽事**：可選填戰隊名稱，追蹤 VCT 賽程與特定戰隊", 
+        description="指揮官，歡迎使用系統。請點擊下方的按鈕選擇您需要的戰術服務：\n\n"
+                    "🛍️ **今日組合包**：免輸入，直接讀取今日商店主打商品\n"
+                    "🎯 **戰力雷達圖**：輸入 ID，動態分析近 5 場戰力六角圖\n"
+                    "⚔️ **最新戰報**：輸入 ID，取得上一場對戰詳細 KDA 數據\n"
+                    "🏆 **牌位查詢**：輸入 ID，查詢目前階級與系統積分 (Elo)\n"
+                    "📺 **賽事導航中心**：一鍵獲取官方中文直播與世界賽程入口", 
         color=0x2b2d31 
     )
     embed.set_thumbnail(url="https://upload.wikimedia.org/wikipedia/commons/thumb/f/fc/Valorant_logo_-_pink_color_version.svg/512px-Valorant_logo_-_pink_color_version.svg.png")
