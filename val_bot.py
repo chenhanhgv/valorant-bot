@@ -243,7 +243,7 @@ class EsportsModal(Modal, title='📺 查詢 VCT 電競賽程'):
 
         try:
             url = "https://vlrggapi.vercel.app/match?q=upcoming"
-            res = requests.get(url, timeout=10)
+            res = requests.get(url, timeout=25)
             
             if res.status_code == 200 and res.json().get('data'):
                 all_matches = res.json()['data'].get('segments', [])
