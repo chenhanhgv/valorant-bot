@@ -80,7 +80,7 @@ async def on_message(message):
 
 
 # ==========================================
-# 9. 互動式圖形介面：特戰英豪全功能戰術終端機
+# 9. 互動式圖形介面：特戰英豪全功能戰術終端機 (智慧搜尋版)
 # ==========================================
 import discord
 from discord.ext import commands
@@ -104,7 +104,6 @@ class RadarModal(Modal, title='🎯 查詢戰績雷達圖'):
             from matplotlib import font_manager
             import matplotlib.pyplot as plt
 
-            # 下載與設定字體
             font_path = 'NotoSansTC.otf'
             if not os.path.exists(font_path):
                 urllib.request.urlretrieve('https://raw.githubusercontent.com/googlefonts/noto-cjk/main/Sans/OTF/TraditionalChinese/NotoSansCJKtc-Regular.otf', font_path)
@@ -133,7 +132,6 @@ class RadarModal(Modal, title='🎯 查詢戰績雷達圖'):
                 avg_kills, avg_assists, avg_score = total_kills/match_count, total_assists/match_count, total_score/match_count
                 headshot_percent = (total_headshots / total_shots) * 100 if total_shots > 0 else 0
 
-                # 畫圖邏輯
                 score_kills, score_assists, score_hs, score_combat = min(100, (avg_kills/25)*100), min(100, (avg_assists/10)*100), min(100, (headshot_percent/40)*100), min(100, (avg_score/6000)*100)
                 score_overall = (score_kills + score_assists + score_hs + score_combat) / 4
                 categories = ['擊殺爆發力', '團隊助攻', '精準爆頭率', '戰鬥總分', '綜合表現']
@@ -214,21 +212,84 @@ class RankModal(Modal, title='🏆 查詢目前牌位'):
                 data = res.json()['data']
                 rank_name = data.get('currenttierpatched', '未知牌位')
                 rr = data.get('ranking_in_tier', 0)
-                
-                # 🌟 新增這行：把 API 裡的 elo (總和積分) 抓出來
                 elo = data.get('elo', '未知') 
                 
-                # 把它加進回覆訊息裡
                 reply = (f"🏆 **【 {name} 】目前的牌位是：**\n"
                          f"🎖️ 階級：**{rank_name}**\n"
                          f"💯 競技積分 (RR)：**{rr} 分**\n"
                          f"📈 系統總積分 (Elo)：**{elo} 分**")
-                
                 await interaction.followup.send(reply)
             else:
                 await interaction.followup.send("❌ 查無牌位資料 (可能未打完定級賽)。")
         except Exception as e:
             await interaction.followup.send(f"⚠️ 查詢失敗。")
+
+# --- 🌟 模組 A4：電競賽事智慧搜尋視窗 (全新功能) ---
+class EsportsModal(Modal, title='📺 查詢 VCT 電競賽程'):
+    # 設計一個非必填的輸入框，留空代表查全部
+    team_input = TextInput(
+        label='欲查詢的戰隊名稱 (留空則顯示所有近期賽事)', 
+        placeholder='例如：PRX 或 SEN (不分大小寫)', 
+        required=False, 
+        max_length=20
+    )
+
+    async def on_submit(self, interaction: discord.Interaction):
+        search_team = self.team_input.value.strip().lower()
+        
+        if search_team:
+            await interaction.response.send_message(f"🔍 正在搜尋戰隊 【{self.team_input.value.upper()}】 的近期賽程...", ephemeral=False)
+        else:
+            await interaction.response.send_message("📡 正在獲取所有最新的 VCT 職業賽程表...", ephemeral=False)
+
+        try:
+            url = "https://vlrggapi.vercel.app/match/upcoming"
+            res = requests.get(url, timeout=10)
+            
+            if res.status_code == 200 and res.json().get('data'):
+                all_matches = res.json()['data'].get('segments', [])
+                
+                # 篩選邏輯
+                filtered_matches = []
+                for match in all_matches:
+                    t1 = match.get('team1', 'TBD').lower()
+                    t2 = match.get('team2', 'TBD').lower()
+                    
+                    # 如果使用者有輸入關鍵字，就進行模糊比對；如果沒輸入，直接全收
+                    if not search_team or (search_team in t1 or search_team in t2):
+                        filtered_matches.append(match)
+                
+                if not filtered_matches:
+                    await interaction.followup.send(f"❌ 抱歉，在近期即將開打的賽程中，找不到與「{self.team_input.value}」相關的比賽。")
+                    return
+
+                # 最多只顯示前 5 場，避免洗版
+                display_matches = filtered_matches[:5]
+                
+                embed = discord.Embed(
+                    title="📺 VCT 職業賽賽程表" if not search_team else f"📺 【{self.team_input.value.upper()}】 專屬賽程篩選結果",
+                    description="資料即時連線自 VLR.gg 數據庫",
+                    color=0x9b59b6
+                )
+                
+                for match in display_matches:
+                    team1 = match.get('team1', 'TBD')
+                    team2 = match.get('team2', 'TBD')
+                    event = match.get('tournament_name', '未知賽事')
+                    time_info = match.get('time', '時間未定')
+                    
+                    embed.add_field(
+                        name=f"⚔️ {team1}  vs  {team2}",
+                        value=f"🏆 {event}\n⏰ {time_info}",
+                        inline=False
+                    )
+                    
+                await interaction.followup.send(embed=embed)
+            else:
+                await interaction.followup.send("❌ 無法取得賽事資料，請稍後再試。")
+        except Exception as e:
+            print(f"賽事查詢錯誤: {e}")
+            await interaction.followup.send("⚠️ 系統擷取電競資料庫時發生錯誤。")
 
 
 # --- 模組 B：終極按鈕主選單 ---
@@ -281,6 +342,11 @@ class ValoMenu(View):
     async def rank_btn(self, interaction: discord.Interaction, button: Button):
         await interaction.response.send_modal(RankModal())
 
+    # 按鈕 5：電競賽事 (紫色) - 🌟 升級為呼叫彈出式搜尋視窗
+    @discord.ui.button(label="近期賽事", style=discord.ButtonStyle.primary, emoji="📺")
+    async def esports_btn(self, interaction: discord.Interaction, button: Button):
+        await interaction.response.send_modal(EsportsModal())
+
 # --- 模組 C：觸發主選單指令 ---
 @bot.command()
 async def menu(ctx):
@@ -290,7 +356,8 @@ async def menu(ctx):
                     "🛍️ **今日組合包**：免輸入，直接讀取今日商店大包\n"
                     "🎯 **戰力雷達圖**：輸入 ID，生成近 5 場戰力六角圖\n"
                     "⚔️ **最新戰報**：輸入 ID，取得上一場對戰詳細 KDA\n"
-                    "🏆 **牌位查詢**：輸入 ID，查詢目前階級與隱分",
+                    "🏆 **牌位查詢**：輸入 ID，查詢目前階級與系統總分\n"
+                    "📺 **近期賽事**：可選填戰隊名稱，追蹤 VCT 賽程與特定戰隊", 
         color=0x2b2d31 
     )
     embed.set_thumbnail(url="https://upload.wikimedia.org/wikipedia/commons/thumb/f/fc/Valorant_logo_-_pink_color_version.svg/512px-Valorant_logo_-_pink_color_version.svg.png")
