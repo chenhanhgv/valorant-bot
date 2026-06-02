@@ -243,7 +243,7 @@ class EsportsModal(Modal, title='📺 查詢 VCT 電競賽程'):
             await interaction.response.send_message("📡 正在獲取所有最新的 VCT 職業賽程表...", ephemeral=False)
 
         try:
-            url = "https://vlrggapi.vercel.app/match/upcoming"
+            url = "https://vlrggapi.vercel.app/match?q=upcoming"
             res = requests.get(url, timeout=10)
             
             if res.status_code == 200 and res.json().get('data'):
