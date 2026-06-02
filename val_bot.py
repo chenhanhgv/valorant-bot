@@ -253,16 +253,15 @@ class EsportsModal(Modal, title='📺 查詢 VCT 電競賽程'):
                 
                 filtered_matches = []
                 for match in all_matches:
-                    raw_event = match.get('match_event', '').lower()
-                    t1 = match.get('team1', 'TBD').lower()
-                    t2 = match.get('team2', 'TBD').lower()
+                    # 🌟 防彈升級 1：確保拿到的絕對是字串，才做 .lower()
+                    raw_event = str(match.get('match_event') or '').lower()
+                    t1 = str(match.get('team1') or 'TBD').lower()
+                    t2 = str(match.get('team2') or 'TBD').lower()
                     
                     if search_team:
-                        # 情況 A：玩家有輸入隊伍，進行全庫搜尋 (確保二級隊伍也搜得到)
                         if search_team in t1 or search_team in t2:
                             filtered_matches.append(match)
                     else:
-                        # 情況 B：玩家沒輸入隊伍，只顯示包含 Tier 1 關鍵字，且「不包含」挑戰者聯賽的頂級賽事
                         is_tier1 = any(kw in raw_event for kw in tier1_keywords)
                         if is_tier1 and "challengers" not in raw_event and "game changers" not in raw_event:
                             filtered_matches.append(match)
@@ -306,17 +305,18 @@ class EsportsModal(Modal, title='📺 查詢 VCT 電競賽程'):
                     return text
 
                 for match in display_matches:
-                    team1 = match.get('team1', 'TBD')
-                    team2 = match.get('team2', 'TBD')
+                    team1 = str(match.get('team1') or 'TBD')
+                    team2 = str(match.get('team2') or 'TBD')
                     
-                    raw_event = match.get('match_event', '未知賽事')
-                    raw_series = match.get('match_series', '')
+                    # 🌟 防彈升級 2：確保翻譯和替換文字時，絕對是字串
+                    raw_event = str(match.get('match_event') or '未知賽事')
+                    raw_series = str(match.get('match_series') or '')
                     
                     event = translate_terms(raw_event)
                     series = translate_terms(raw_series)
                     event_display = f"{event} - {series}" if series else event
                     
-                    raw_time = match.get('time_until_match', '時間未定')
+                    raw_time = str(match.get('time_until_match') or '時間未定')
                     time_info = raw_time.replace('from now', '後開打').replace('d', '天').replace('h', '小時').replace('m', '分鐘')
                     
                     embed.add_field(
