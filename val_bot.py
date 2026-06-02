@@ -76,43 +76,53 @@ async def on_message(message):
 
 
 # ==========================================
-# 5. 特戰英豪主打商店組合包查詢 (高穩定修復版)
+# 5. 特戰英豪主打商店組合包查詢 (自適應資料防呆版)
 # ==========================================
 @bot.command()
 async def bundle(ctx):
     await ctx.send("🔍 正在連線至 Riot 商店獲取最新組合包...")
     
     try:
-        # ⚠️ 修正 1：把所有變數定義都搬進 try 裡面，確保報錯能被捕捉
-        # ⚠️ 修正 2：統一使用之前的金鑰變數名稱 API_KEY
+        import requests # 確保 requests 套件有被載入
+        
         url = "https://api.henrikdev.xyz/valorant/v1/store-featured"
         headers = {"Authorization": API_KEY}
         
-        # 為了環境穩定性，先使用確定已經安裝的 requests
         response = requests.get(url, headers=headers, timeout=10)
         
         if response.status_code == 200:
             data = response.json()
             
-            # 確保 API 裡面真的有放組合包資料
-            if data.get('data') and len(data['data']) > 0:
-                bundle_info = data['data'][0]
+            if data.get('data'):
+                api_data = data['data']
+                
+                # 🌟 關鍵修復：自動適應 API 回傳的是「清單(List)」還是「字典(Dict)」
+                if isinstance(api_data, list):
+                    if len(api_data) > 0:
+                        bundle_info = api_data[0]
+                    else:
+                        await ctx.send("❌ 目前商店中沒有主打組合包。")
+                        return
+                elif isinstance(api_data, dict):
+                    bundle_info = api_data
+                else:
+                    await ctx.send("❌ API 回傳的資料格式無法解析。")
+                    return
+                
                 bundle_price = bundle_info.get('bundle_price', '未知')
                 
                 await ctx.send(f"✨ **目前主打組合包！** ✨\n💰 總價格: **{bundle_price} VP**\n趕快登入遊戲看看吧！")
             else:
                 await ctx.send("❌ 目前 API 沒有回傳任何主打組合包資料！")
                 
-        # 密碼錯誤 (401 或 403)
         elif response.status_code in [401, 403]:
             await ctx.send("❌ 存取被拒！請檢查你的 API 金鑰是否正確。")
-            
-        # 其他伺服器錯誤
         else:
             await ctx.send(f"❌ 抓取失敗，伺服器狀態碼：{response.status_code}")
             
     except Exception as e:
-        print(f"組合包查詢錯誤: {e}")
+        # 💡 工程師小技巧：使用 repr(e) 可以印出完整的錯誤類型 (例如 KeyError(0))，以後除錯會更精準
+        print(f"組合包查詢錯誤: {repr(e)}") 
         await ctx.send(f"⚠️ 發生系統錯誤，請查看 Render 日誌。")
 # ==========================================
 # 8. 尊爵會員專屬：能力雷達圖 (5場平均 + 中文顯示版)
