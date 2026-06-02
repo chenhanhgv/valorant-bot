@@ -117,38 +117,39 @@ async def bundle(ctx):
     except Exception as e:
         await ctx.send(f"❌ 發生系統錯誤：{e}")
 # ==========================================
-# 8. 尊爵會員專屬：真實數據能力雷達圖
+# 8. 尊爵會員專屬：真實數據能力雷達圖 (終極完整版)
 # ==========================================
 @bot.command()
 async def radar(ctx, riot_id: str = None):
-    # 檢查輸入格式
+    # 1. 檢查有沒有輸入 ID
     if riot_id is None or '#' not in riot_id:
         await ctx.send("⚠️ 格式錯誤！請輸入完整的 Riot ID，例如：`!radar 玩家名稱#TW1`")
         return
 
-    name, tag = riot_id.split('#', 1)
+    # 2. 空白防呆：即使玩家不小心多打了空白，也能自動濾除
+    parts = riot_id.split('#', 1)
+    name = parts[0].strip()
+    tag = parts[1].strip()
+    
     await ctx.send(f"📡 正在自動定位 **{name}** 的伺服器地區並讀取戰績，請稍候...")
 
-    t# ... (前面程式碼不變)
-
     try:
-        # --- 步驟 A：先查玩家基本資料 ---
-        # ⚠️ 關鍵修正：將名字進行網址編碼，解決中文名稱報錯問題
-        encoded_name = urllib.parse.quote(name) 
+        # 3. 解決中文名稱報錯 (URL Encoding)
+        import urllib.parse
+        encoded_name = urllib.parse.quote(name)
         
-        # 使用編碼後的名稱去組網址
+        # --- 步驟 A：查地區 ---
         account_url = f"https://api.henrikdev.xyz/valorant/v1/account/{encoded_name}/{tag}"
         acc_response = requests.get(account_url, timeout=10)
         
         if acc_response.status_code != 200:
             print(f"DEBUG: 查帳號失敗，狀態碼: {acc_response.status_code}, 內容: {acc_response.text}")
-            await ctx.send(f"❌ 找不到該帳號，請確認 ID 是否正確。")
+            await ctx.send(f"❌ 找不到該帳號，請確認 ID 是否正確 (注意大小寫)。")
             return
             
         region = acc_response.json()['data']['region']
         
         # --- 步驟 B：抓戰績 ---
-        # ⚠️ 同樣地，這裡也用編碼後的名稱
         match_url = f"https://api.henrikdev.xyz/valorant/v1/lifetime/matches/{region}/{encoded_name}/{tag}"
         match_response = requests.get(match_url, timeout=10)
         
@@ -162,24 +163,22 @@ async def radar(ctx, riot_id: str = None):
             await ctx.send("❌ 該帳號查無近期對戰紀錄。")
             return
 
-        # 數據萃取 (取最近一場)
+        # --- 4. 數據萃取與轉換 ---
         latest_match = data[0]['stats']
         real_kills = latest_match['kills']
         real_assists = latest_match['assists']
         real_score = latest_match['score']
         
-        # 計算爆頭率
         total_shots = latest_match['shots']['head'] + latest_match['shots']['body'] + latest_match['shots']['leg']
         headshot_percent = (latest_match['shots']['head'] / total_shots) * 100 if total_shots > 0 else 0
 
-        # 數據轉換引擎 (0-100 分)
         score_kills = min(100, (real_kills / 30) * 100)
         score_assists = min(100, (real_assists / 15) * 100)
         score_hs = min(100, (headshot_percent / 40) * 100)
         score_combat = min(100, (real_score / 8000) * 100)
         score_overall = (score_kills + score_assists + score_hs + score_combat) / 4
 
-        # 啟動繪圖引擎
+        # --- 5. 啟動繪圖引擎 ---
         categories = ['擊殺爆發力', '團隊助攻', '精準爆頭率', '戰鬥總分', '綜合表現']
         values = [score_kills, score_assists, score_hs, score_combat, score_overall]
 
@@ -200,7 +199,7 @@ async def radar(ctx, riot_id: str = None):
         plt.savefig(file_name, bbox_inches='tight')
         plt.close() 
 
-        # 發送到 Discord
+        # --- 6. 發送到 Discord ---
         picture = discord.File(file_name)
         await ctx.send(f"✨ {ctx.author.mention}，戰績分析完成！\n這場他拿了 **{real_kills} 殺**，爆頭率高達 **{headshot_percent:.1f}%**！", file=picture)
 
