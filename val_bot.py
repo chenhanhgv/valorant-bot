@@ -215,7 +215,16 @@ class RankModal(Modal, title='🏆 查詢目前牌位'):
                 rank_name = data.get('currenttierpatched', '未知牌位')
                 rr = data.get('ranking_in_tier', 0)
                 
-                await interaction.followup.send(f"🏆 **【 {name} 】目前的牌位是：**\n🎖️ 階級：**{rank_name}**\n💯 競技積分 (RR)：**{rr} 分**")
+                # 🌟 新增這行：把 API 裡的 elo (總和積分) 抓出來
+                elo = data.get('elo', '未知') 
+                
+                # 把它加進回覆訊息裡
+                reply = (f"🏆 **【 {name} 】目前的牌位是：**\n"
+                         f"🎖️ 階級：**{rank_name}**\n"
+                         f"💯 競技積分 (RR)：**{rr} 分**\n"
+                         f"📈 系統總積分 (Elo)：**{elo} 分**")
+                
+                await interaction.followup.send(reply)
             else:
                 await interaction.followup.send("❌ 查無牌位資料 (可能未打完定級賽)。")
         except Exception as e:
