@@ -250,8 +250,13 @@ class EsportsModal(Modal, title='📺 查詢 VCT 電競賽程'):
                 all_matches = res.json()['data'].get('segments', [])
                 
                 # 篩選邏輯
+                # 篩選邏輯
                 filtered_matches = []
                 for match in all_matches:
+                    
+                    # 🌟 【新增這行】把 VLR.gg 傳來的原始資料印在 Render 的日誌裡！
+                    print(f"DEBUG 賽事原始資料: {match}")
+                    
                     t1 = match.get('team1', 'TBD').lower()
                     t2 = match.get('team2', 'TBD').lower()
                     
