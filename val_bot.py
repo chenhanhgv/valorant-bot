@@ -191,9 +191,8 @@ async def radar(ctx, *, riot_id: str = None):
         score_overall = (score_kills + score_assists + score_hs + score_combat) / 4
 
         # --- 啟動繪圖引擎 ---
-        categories = ['擊殺爆發力', '團隊助攻', '精準爆頭率', '戰鬥總分', '綜合表現']
+        categories = ['Kills', 'Assists', 'Headshot %', 'Combat Score', 'Overall Rating']
         values = [score_kills, score_assists, score_hs, score_combat, score_overall]
-
         N = len(categories)
         angles = [n / float(N) * 2 * math.pi for n in range(N)]
         angles += angles[:1]
@@ -205,8 +204,7 @@ async def radar(ctx, *, riot_id: str = None):
 
         plt.xticks(angles[:-1], categories, fontsize=12, color='black')
         ax.set_yticklabels([])
-        plt.title(f"【 {name} 】能力雷達圖 (AP)", size=18, weight='bold', color='#333333', y=1.1)
-
+        plt.title(f"[{name}] Stats Radar (AP)", size=18, weight='bold', color='#333333', y=1.1)
         file_name = 'radar_chart.png'
         plt.savefig(file_name, bbox_inches='tight')
         plt.close() 
