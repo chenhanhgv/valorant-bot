@@ -1,3 +1,7 @@
+
+import discord
+from discord.ext import commands
+from discord.ui import Button, View, Modal, TextInput # 🌟 新增這行：載入介面套件
 import discord
 from flask import Flask
 from threading import Thread
@@ -422,5 +426,56 @@ async def vhistory(ctx, *, riot_id: str):
     except Exception as e:
         print(f"錯誤訊息: {e}")
         await ctx.send("⚠️ 讀取歷史資料失敗，請稍後再試。")
+# ==========================================
+# 9. 互動式圖形介面：戰術終端機選單
+# ==========================================
+
+# --- 步驟 A：設計彈出視窗 (Modal) ---
+# 當玩家想查戰績時，彈出這個視窗讓他們輸入 ID
+class RadarModal(Modal, title='📊 查詢戰績雷達圖'):
+    # 設計一個文字輸入框
+    riot_id_input = TextInput(
+        label='請輸入您的 Riot ID',
+        placeholder='例如：絕境大蕃薯#0313',
+        required=True, # 必填
+        max_length=30
+    )
+
+    # 當玩家按下「提交」後會執行的動作
+    async def on_submit(self, interaction: discord.Interaction):
+        user_input = self.riot_id_input.value
+        # ephemeral=True 是一個黑科技，代表「這則訊息只有點按鈕的人自己看得到」！
+        await interaction.response.send_message(
+            f"✅ 系統已接收到 ID：`{user_input}`！\n*(註：按鈕與輸入框測試成功！下一步我們就可以把畫圖引擎接進來了)*", 
+            ephemeral=True
+        )
+
+# --- 步驟 B：設計按鈕選單 (View) ---
+class ValoMenu(View):
+    def __init__(self):
+        super().__init__(timeout=None) # timeout=None 代表這排按鈕永遠不會過期
+
+    # 第一個按鈕：商店查詢 (藍色按鈕)
+    @discord.ui.button(label="查看今日組合包", style=discord.ButtonStyle.blurple, emoji="🛍️")
+    async def bundle_btn(self, interaction: discord.Interaction, button: Button):
+        await interaction.response.send_message("🎁 您點擊了商店按鈕！*(UI 測試成功)*", ephemeral=True)
+
+    # 第二個按鈕：戰績查詢 (紅色按鈕)
+    @discord.ui.button(label="生成雷達圖", style=discord.ButtonStyle.red, emoji="🎯")
+    async def radar_btn(self, interaction: discord.Interaction, button: Button):
+        # 當點擊戰績按鈕時，呼叫並彈出剛剛寫好的 RadarModal 視窗
+        await interaction.response.send_modal(RadarModal())
+
+# --- 步驟 C：建立觸發選單的指令 ---
+@bot.command()
+async def menu(ctx):
+    # 製作一個簡單的圖文框當作選單背景
+    embed = discord.Embed(
+        title="🎮 特戰英豪戰術終端機",
+        description="歡迎使用系統！請點擊下方的按鈕來操作：",
+        color=0x2b2d31 # 這個顏色會完美融入 Discord 的深色背景
+    )
+    # 關鍵：發送訊息時，把我們設計好的 ValoMenu 裝上去 (view=ValoMenu())
+    await ctx.send(embed=embed, view=ValoMenu())
 
 bot.run(TOKEN)
