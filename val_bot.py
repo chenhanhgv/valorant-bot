@@ -117,53 +117,45 @@ async def bundle(ctx):
     except Exception as e:
         await ctx.send(f"❌ 發生系統錯誤：{e}")
 # ==========================================
-# 8. 尊爵會員專屬：真實數據能力雷達圖 (終極完整版)
 # ==========================================
+# 8. 尊爵會員專屬：能力雷達圖 (亞服直通版)
+# ==========================================
+# ⚠️ 注意 ctx 後面的 *, riot_id，這個 * 號可以完美吸收所有空格！
 @bot.command()
-async def radar(ctx, riot_id: str = None):
-    # 1. 檢查有沒有輸入 ID
+async def radar(ctx, *, riot_id: str = None):
     if riot_id is None or '#' not in riot_id:
         await ctx.send("⚠️ 格式錯誤！請輸入完整的 Riot ID，例如：`!radar 玩家名稱#TW1`")
         return
 
-    # 2. 空白防呆：即使玩家不小心多打了空白，也能自動濾除
+    # 自動過濾掉多餘的空格
     parts = riot_id.split('#', 1)
     name = parts[0].strip()
     tag = parts[1].strip()
     
-    await ctx.send(f"📡 正在自動定位 **{name}** 的伺服器地區並讀取戰績，請稍候...")
+    await ctx.send(f"📡 正在直接潛入亞太 (AP) 資料庫，讀取 **{name}** 的真實戰績，請稍候...")
 
     try:
-        # 3. 解決中文名稱報錯 (URL Encoding)
         import urllib.parse
         encoded_name = urllib.parse.quote(name)
         
-        # --- 步驟 A：查地區 ---
-        account_url = f"https://api.henrikdev.xyz/valorant/v1/account/{encoded_name}/{tag}"
-        acc_response = requests.get(account_url, timeout=10)
+        # --- 捨棄步驟 A，直接強制定義伺服器為 'ap' ---
+        region = 'ap'
         
-        if acc_response.status_code != 200:
-            print(f"DEBUG: 查帳號失敗，狀態碼: {acc_response.status_code}, 內容: {acc_response.text}")
-            await ctx.send(f"❌ 找不到該帳號，請確認 ID 是否正確 (注意大小寫)。")
-            return
-            
-        region = acc_response.json()['data']['region']
-        
-        # --- 步驟 B：抓戰績 ---
+        # --- 直接執行步驟 B：抓取近期戰績 ---
         match_url = f"https://api.henrikdev.xyz/valorant/v1/lifetime/matches/{region}/{encoded_name}/{tag}"
         match_response = requests.get(match_url, timeout=10)
         
         if match_response.status_code != 200:
             print(f"DEBUG: 抓戰績失敗，狀態碼: {match_response.status_code}, 內容: {match_response.text}")
-            await ctx.send(f"❌ 查戰績失敗 (狀態碼 {match_response.status_code})。")
+            await ctx.send(f"❌ 查無戰績 (API 狀態碼 {match_response.status_code})。這通常是因為該玩家近期沒有公開的對戰紀錄。")
             return
             
         data = match_response.json()['data']
         if not data:
-            await ctx.send("❌ 該帳號查無近期對戰紀錄。")
+            await ctx.send("❌ 該帳號查無近期對戰紀錄，無法繪製雷達圖。")
             return
 
-        # --- 4. 數據萃取與轉換 ---
+        # --- 數據萃取與轉換 ---
         latest_match = data[0]['stats']
         real_kills = latest_match['kills']
         real_assists = latest_match['assists']
@@ -178,7 +170,7 @@ async def radar(ctx, riot_id: str = None):
         score_combat = min(100, (real_score / 8000) * 100)
         score_overall = (score_kills + score_assists + score_hs + score_combat) / 4
 
-        # --- 5. 啟動繪圖引擎 ---
+        # --- 啟動繪圖引擎 ---
         categories = ['擊殺爆發力', '團隊助攻', '精準爆頭率', '戰鬥總分', '綜合表現']
         values = [score_kills, score_assists, score_hs, score_combat, score_overall]
 
@@ -193,13 +185,13 @@ async def radar(ctx, riot_id: str = None):
 
         plt.xticks(angles[:-1], categories, fontsize=12, color='black')
         ax.set_yticklabels([])
-        plt.title(f"【 {name} 】能力雷達圖 ({region.upper()})", size=18, weight='bold', color='#333333', y=1.1)
+        plt.title(f"【 {name} 】能力雷達圖 (AP)", size=18, weight='bold', color='#333333', y=1.1)
 
         file_name = 'radar_chart.png'
         plt.savefig(file_name, bbox_inches='tight')
         plt.close() 
 
-        # --- 6. 發送到 Discord ---
+        # --- 發送到 Discord ---
         picture = discord.File(file_name)
         await ctx.send(f"✨ {ctx.author.mention}，戰績分析完成！\n這場他拿了 **{real_kills} 殺**，爆頭率高達 **{headshot_percent:.1f}%**！", file=picture)
 
