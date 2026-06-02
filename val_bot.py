@@ -76,7 +76,7 @@ async def on_message(message):
 
 
 # ==========================================
-# 5. 特戰英豪主打商店組合包查詢 (除錯特化版)
+# 5. 特戰英豪主打商店組合包查詢 (終極總價解密版)
 # ==========================================
 @bot.command()
 async def bundle(ctx):
@@ -86,7 +86,6 @@ async def bundle(ctx):
         import requests 
         
         url = "https://api.henrikdev.xyz/valorant/v1/store-featured"
-        # 確保這裡的 API_KEY 跟你在最前面設定的名字一樣
         headers = {"Authorization": API_KEY} 
         
         response = requests.get(url, headers=headers, timeout=10)
@@ -97,26 +96,33 @@ async def bundle(ctx):
             if data.get('data'):
                 api_data = data['data']
                 
-                # 自動適應 API 回傳的是「清單」還是「字典」
-                if isinstance(api_data, list):
-                    if len(api_data) > 0:
-                        bundle_info = api_data[0]
-                    else:
-                        await ctx.send("❌ 目前商店中沒有主打組合包。")
-                        return
+                # 自適應結構判斷
+                if isinstance(api_data, list) and len(api_data) > 0:
+                    bundle_info = api_data[0]
                 elif isinstance(api_data, dict):
                     bundle_info = api_data
                 else:
                     await ctx.send("❌ API 回傳的資料格式無法解析。")
                     return
                 
-                # 🌟 啟動透視鏡：把整包資料印到 Render 日誌裡
-                print(f"DEBUG 組合包原始資料: {bundle_info}")
+                # 🧮 核心修正：深入 JSON 樹狀結構尋找 Items 物品清單
+                items = []
+                if 'FeaturedBundle' in bundle_info and 'Bundle' in bundle_info['FeaturedBundle']:
+                    items = bundle_info['FeaturedBundle']['Bundle'].get('Items', [])
+                elif 'Bundle' in bundle_info:
+                    items = bundle_info['Bundle'].get('Items', [])
                 
-                # 嘗試抓取價格 (目前猜測是 bundle_price，抓不到就顯示未知)
-                bundle_price = bundle_info.get('bundle_price', '未知')
+                if not items:
+                    await ctx.send("❌ 成功取得商店資料，但目前架上似乎沒有主打組合包物品。")
+                    return
                 
-                await ctx.send(f"✨ **目前主打組合包！** ✨\n💰 總價格: **{bundle_price} VP**\n趕快登入遊戲看看吧！")
+                # 🔄 遍歷清單：將所有物品的「折後價格 (DiscountedPrice)」加總起來
+                total_price = 0
+                for item in items:
+                    total_price += int(item.get('DiscountedPrice', 0))
+                
+                # 完美發送結果
+                await ctx.send(f"✨ **目前最新主打組合包資訊！** ✨\n💰 組合包總價格: **{total_price} VP**\n🛒 包含多項主打造型商品，趕快登入遊戲看看吧！")
             else:
                 await ctx.send("❌ 目前 API 沒有回傳任何主打組合包資料！")
                 
