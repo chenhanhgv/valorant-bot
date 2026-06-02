@@ -76,17 +76,18 @@ async def on_message(message):
 
 
 # ==========================================
-# 5. 特戰英豪主打商店組合包查詢 (自適應資料防呆版)
+# 5. 特戰英豪主打商店組合包查詢 (除錯特化版)
 # ==========================================
 @bot.command()
 async def bundle(ctx):
     await ctx.send("🔍 正在連線至 Riot 商店獲取最新組合包...")
     
     try:
-        import requests # 確保 requests 套件有被載入
+        import requests 
         
         url = "https://api.henrikdev.xyz/valorant/v1/store-featured"
-        headers = {"Authorization": API_KEY}
+        # 確保這裡的 API_KEY 跟你在最前面設定的名字一樣
+        headers = {"Authorization": API_KEY} 
         
         response = requests.get(url, headers=headers, timeout=10)
         
@@ -96,7 +97,7 @@ async def bundle(ctx):
             if data.get('data'):
                 api_data = data['data']
                 
-                # 🌟 關鍵修復：自動適應 API 回傳的是「清單(List)」還是「字典(Dict)」
+                # 自動適應 API 回傳的是「清單」還是「字典」
                 if isinstance(api_data, list):
                     if len(api_data) > 0:
                         bundle_info = api_data[0]
@@ -109,6 +110,10 @@ async def bundle(ctx):
                     await ctx.send("❌ API 回傳的資料格式無法解析。")
                     return
                 
+                # 🌟 啟動透視鏡：把整包資料印到 Render 日誌裡
+                print(f"DEBUG 組合包原始資料: {bundle_info}")
+                
+                # 嘗試抓取價格 (目前猜測是 bundle_price，抓不到就顯示未知)
                 bundle_price = bundle_info.get('bundle_price', '未知')
                 
                 await ctx.send(f"✨ **目前主打組合包！** ✨\n💰 總價格: **{bundle_price} VP**\n趕快登入遊戲看看吧！")
@@ -121,7 +126,6 @@ async def bundle(ctx):
             await ctx.send(f"❌ 抓取失敗，伺服器狀態碼：{response.status_code}")
             
     except Exception as e:
-        # 💡 工程師小技巧：使用 repr(e) 可以印出完整的錯誤類型 (例如 KeyError(0))，以後除錯會更精準
         print(f"組合包查詢錯誤: {repr(e)}") 
         await ctx.send(f"⚠️ 發生系統錯誤，請查看 Render 日誌。")
 # ==========================================
