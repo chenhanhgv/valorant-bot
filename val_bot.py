@@ -117,7 +117,7 @@ async def bundle(ctx):
     except Exception as e:
         await ctx.send(f"❌ 發生系統錯誤：{e}")
 # ==========================================
-# 8. 尊爵會員專屬：能力雷達圖 (金鑰授權 + v3 直通版)
+# 8. 尊爵會員專屬：能力雷達圖 (5場平均 + 中文顯示版)
 # ==========================================
 @bot.command()
 async def radar(ctx, *, riot_id: str = None):
@@ -129,70 +129,91 @@ async def radar(ctx, *, riot_id: str = None):
     name = parts[0].strip()
     tag = parts[1].strip()
     
-    await ctx.send(f"📡 正在出示通行證，潛入資料庫讀取 **{name}** 的真實戰績，請稍候...")
+    await ctx.send(f"📡 正在調閱 **{name}** 最近 5 場的對戰紀錄，進行綜合戰力分析，請稍候...")
 
     try:
         import urllib.parse
+        import urllib.request
+        import os
+        from matplotlib import font_manager
+
+        # --- 1. 自動下載中文字體 (解決方塊字問題) ---
+        font_path = 'NotoSansTC.otf'
+        if not os.path.exists(font_path):
+            print("DEBUG: 正在下載中文字體...")
+            # 從 Google Fonts 開源庫下載思源黑體
+            font_url = 'https://raw.githubusercontent.com/googlefonts/noto-cjk/main/Sans/OTF/TraditionalChinese/NotoSansCJKtc-Regular.otf'
+            urllib.request.urlretrieve(font_url, font_path)
+        
+        # 載入字體設定
+        my_font = font_manager.FontProperties(fname=font_path)
+
+        # --- 2. 抓取最近 5 場戰績 ---
         encoded_name = urllib.parse.quote(name)
-        encoded_tag = urllib.parse.quote(tag) # 順便把 tag 也編碼，更安全
+        encoded_tag = urllib.parse.quote(tag)
         
-        # 走 v3 路線，並加上 size=1 只抓最新一場減輕伺服器負擔
-        match_url = f"https://api.henrikdev.xyz/valorant/v3/matches/ap/{encoded_name}/{encoded_tag}?size=1"
+        # ⚠️ 關鍵：將 size=1 改為 size=5
+        match_url = f"https://api.henrikdev.xyz/valorant/v3/matches/ap/{encoded_name}/{encoded_tag}?size=5"
         
-        # 🔑 關鍵移植：把你的 API_KEY 夾帶進去！
         headers = {
             "Authorization": API_KEY
         }
         
-        # 發送請求時，一併遞交通行證 (headers=headers)
-        match_response = requests.get(match_url, headers=headers, timeout=10)
+        match_response = requests.get(match_url, headers=headers, timeout=15)
         
         if match_response.status_code != 200:
-            print(f"DEBUG: 抓戰績失敗，狀態碼: {match_response.status_code}, 內容: {match_response.text}")
+            print(f"DEBUG: 抓戰績失敗，狀態碼: {match_response.status_code}")
             await ctx.send(f"❌ 查無戰績或通行證失效 (API 狀態碼 {match_response.status_code})。")
             return
             
-        data = match_response.json().get('data')
-        if not data:
+        matches = match_response.json().get('data')
+        if not matches:
             await ctx.send("❌ 該帳號查無近期對戰紀錄，無法繪製雷達圖。")
             return
 
-        # --- v3 數據萃取邏輯 ---
-        latest_match = data[0]
-        
-        # 在名單中尋找目標玩家
-        player_stats = None
-        for p in latest_match['players']['all_players']:
-            if p['name'].lower() == name.lower():
-                player_stats = p['stats']
-                break
+        # --- 3. 數據萃取與平均計算 ---
+        match_count = len(matches) # 實際抓到的場數 (最高5場)
+        total_kills = 0
+        total_assists = 0
+        total_score = 0
+        total_headshots = 0
+        total_shots = 0
 
-        if not player_stats:
-            await ctx.send("❌ 無法在該場對戰中找到此玩家的具體數據。")
-            return
+        # 用迴圈把每一場的數據加總起來
+        for match in matches:
+            for p in match['players']['all_players']:
+                if p['name'].lower() == name.lower():
+                    stats = p['stats']
+                    total_kills += stats.get('kills', 0)
+                    total_assists += stats.get('assists', 0)
+                    total_score += stats.get('score', 0)
+                    
+                    headshots = stats.get('headshots', 0)
+                    bodyshots = stats.get('bodyshots', 0)
+                    legshots = stats.get('legshots', 0)
+                    total_headshots += headshots
+                    total_shots += (headshots + bodyshots + legshots)
+                    break
 
-        # 讀取真實數值
-        real_kills = player_stats.get('kills', 0)
-        real_assists = player_stats.get('assists', 0)
-        real_score = player_stats.get('score', 0)
-        
-        # v3 爆頭數據
-        headshots = player_stats.get('headshots', 0)
-        bodyshots = player_stats.get('bodyshots', 0)
-        legshots = player_stats.get('legshots', 0)
-        total_shots = headshots + bodyshots + legshots
-        headshot_percent = (headshots / total_shots) * 100 if total_shots > 0 else 0
+        # 計算平均值
+        avg_kills = total_kills / match_count
+        avg_assists = total_assists / match_count
+        avg_score = total_score / match_count
+        headshot_percent = (total_headshots / total_shots) * 100 if total_shots > 0 else 0
 
-        # --- 數據轉換引擎 (0-100 分) ---
-        score_kills = min(100, (real_kills / 30) * 100)
-        score_assists = min(100, (real_assists / 15) * 100)
+        # --- 4. 數據轉換引擎 (0-100 分) ---
+        # 為了平均值，稍微下修滿分標準 (例如場均 25 殺即滿分)
+        score_kills = min(100, (avg_kills / 25) * 100) 
+        score_assists = min(100, (avg_assists / 10) * 100)
         score_hs = min(100, (headshot_percent / 40) * 100)
-        score_combat = min(100, (real_score / 8000) * 100)
+        score_combat = min(100, (avg_score / 6000) * 100) 
         score_overall = (score_kills + score_assists + score_hs + score_combat) / 4
 
-        # --- 啟動繪圖引擎 ---
-        categories = ['Kills', 'Assists', 'Headshot %', 'Combat Score', 'Overall Rating']
+        # --- 5. 啟動繪圖引擎 ---
+        # 換回霸氣的中文標籤
+        categories = ['擊殺爆發力', '團隊助攻', '精準爆頭率', '戰鬥總分', '綜合表現']
         values = [score_kills, score_assists, score_hs, score_combat, score_overall]
+
         N = len(categories)
         angles = [n / float(N) * 2 * math.pi for n in range(N)]
         angles += angles[:1]
@@ -202,16 +223,25 @@ async def radar(ctx, *, riot_id: str = None):
         ax.plot(angles, values, color='#FF4655', linewidth=2, linestyle='solid')
         ax.fill(angles, values, color='#FF4655', alpha=0.4)
 
-        plt.xticks(angles[:-1], categories, fontsize=12, color='black')
+        # ⚠️ 關鍵：套用下載好的 my_font 中文字體
+        plt.xticks(angles[:-1], categories, fontsize=12, color='black', fontproperties=my_font)
         ax.set_yticklabels([])
-        plt.title(f"[{name}] Stats Radar (AP)", size=18, weight='bold', color='#333333', y=1.1)
+        
+        # 標題也套用中文字體，並標示計算了幾場
+        title_text = f"【 {name} 】近 {match_count} 場平均戰力分析"
+        plt.title(title_text, size=18, weight='bold', color='#333333', y=1.1, fontproperties=my_font)
+
         file_name = 'radar_chart.png'
         plt.savefig(file_name, bbox_inches='tight')
         plt.close() 
 
-        # --- 發送到 Discord ---
+        # --- 6. 發送到 Discord ---
         picture = discord.File(file_name)
-        await ctx.send(f"✨ {ctx.author.mention}，戰績分析完成！\n這場他拿了 **{real_kills} 殺**，爆頭率高達 **{headshot_percent:.1f}%**！", file=picture)
+        msg = (f"✨ {ctx.author.mention}，戰力分析完成！\n"
+               f"基於最近 **{match_count}** 場對戰數據：\n"
+               f"場均擊殺：**{avg_kills:.1f}** 殺\n"
+               f"平均爆頭率：**{headshot_percent:.1f}%**")
+        await ctx.send(msg, file=picture)
 
     except Exception as e:
         print(f"雷達圖系統錯誤: {e}")
