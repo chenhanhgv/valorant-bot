@@ -76,15 +76,17 @@ async def on_message(message):
 
 
 # ==========================================
-# 5. 特戰英豪主打商店組合包查詢 (終極總價解密版)
+# 5. 特戰英豪主打商店組合包查詢 (終極圖文進化版)
 # ==========================================
 @bot.command()
 async def bundle(ctx):
-    await ctx.send("🔍 正在連線至 Riot 商店獲取最新組合包...")
+    await ctx.send("🔍 正在連線至 Riot 商店與圖庫獲取最新資訊...")
     
     try:
         import requests 
+        import discord # 引入 discord 套件來製作漂亮的圖文框
         
+        # --- 步驟 1：向 Riot 商店伺服器要「商品條碼」與「價格」 ---
         url = "https://api.henrikdev.xyz/valorant/v1/store-featured"
         headers = {"Authorization": API_KEY} 
         
@@ -96,7 +98,6 @@ async def bundle(ctx):
             if data.get('data'):
                 api_data = data['data']
                 
-                # 自適應結構判斷
                 if isinstance(api_data, list) and len(api_data) > 0:
                     bundle_info = api_data[0]
                 elif isinstance(api_data, dict):
@@ -105,24 +106,54 @@ async def bundle(ctx):
                     await ctx.send("❌ API 回傳的資料格式無法解析。")
                     return
                 
-                # 🧮 核心修正：深入 JSON 樹狀結構尋找 Items 物品清單
+                # 抓取物品清單與組合包條碼 (DataAssetID)
                 items = []
+                bundle_id = ""
                 if 'FeaturedBundle' in bundle_info and 'Bundle' in bundle_info['FeaturedBundle']:
                     items = bundle_info['FeaturedBundle']['Bundle'].get('Items', [])
+                    bundle_id = bundle_info['FeaturedBundle']['Bundle'].get('DataAssetID', '')
                 elif 'Bundle' in bundle_info:
                     items = bundle_info['Bundle'].get('Items', [])
+                    bundle_id = bundle_info['Bundle'].get('DataAssetID', '')
                 
                 if not items:
                     await ctx.send("❌ 成功取得商店資料，但目前架上似乎沒有主打組合包物品。")
                     return
                 
-                # 🔄 遍歷清單：將所有物品的「折後價格 (DiscountedPrice)」加總起來
+                # 計算總價
                 total_price = 0
                 for item in items:
                     total_price += int(item.get('DiscountedPrice', 0))
                 
-                # 完美發送結果
-                await ctx.send(f"✨ **目前最新主打組合包資訊！** ✨\n💰 組合包總價格: **{total_price} VP**\n🛒 包含多項主打造型商品，趕快登入遊戲看看吧！")
+                # --- 步驟 2：拿著條碼去「圖文素材庫」翻譯成中文名稱與圖片 ---
+                bundle_name = "未知主打組合包"
+                bundle_image = ""
+                
+                if bundle_id:
+                    # 呼叫開源素材庫，並指定 language=zh-TW 獲取繁體中文
+                    asset_url = f"https://valorant-api.com/v1/bundles/{bundle_id}?language=zh-TW"
+                    asset_res = requests.get(asset_url, timeout=10)
+                    
+                    if asset_res.status_code == 200:
+                        asset_data = asset_res.json().get('data', {})
+                        bundle_name = asset_data.get('displayName', bundle_name)
+                        bundle_image = asset_data.get('displayIcon', '') # 抓取官方宣傳圖網址
+                
+                # --- 步驟 3：製作專業的 Discord 圖文框 (Embed) ---
+                embed = discord.Embed(
+                    title=f"✨ 本期主打：【 {bundle_name} 】", 
+                    description="趕快登入遊戲查看詳細內容吧！",
+                    color=0xFF4655 # 使用特戰英豪的經典紅色
+                )
+                embed.add_field(name="💰 總價格", value=f"**{total_price} VP**", inline=False)
+                
+                # 如果有抓到圖片，就把它塞進圖文框裡
+                if bundle_image:
+                    embed.set_image(url=bundle_image)
+                
+                # 發送精美圖文！
+                await ctx.send(embed=embed)
+                
             else:
                 await ctx.send("❌ 目前 API 沒有回傳任何主打組合包資料！")
                 
