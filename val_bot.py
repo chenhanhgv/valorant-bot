@@ -224,9 +224,8 @@ class RankModal(Modal, title='🏆 查詢目前牌位'):
         except Exception as e:
             await interaction.followup.send(f"⚠️ 查詢失敗。")
 
-# --- 🌟 模組 A4：電競賽事智慧搜尋視窗 (全新功能) ---
+# --- 🌟 模組 A4：電競賽事智慧搜尋視窗 (Tier 1 頂級賽事過濾版) ---
 class EsportsModal(Modal, title='📺 查詢 VCT 電競賽程'):
-    # 設計一個非必填的輸入框，留空代表查全部
     team_input = TextInput(
         label='欲查詢的戰隊名稱 (留空則顯示所有近期賽事)', 
         placeholder='例如：PRX 或 SEN (不分大小寫)', 
@@ -240,7 +239,7 @@ class EsportsModal(Modal, title='📺 查詢 VCT 電競賽程'):
         if search_team:
             await interaction.response.send_message(f"🔍 正在搜尋戰隊 【{self.team_input.value.upper()}】 的近期賽程...", ephemeral=False)
         else:
-            await interaction.response.send_message("📡 正在獲取所有最新的 VCT 職業賽程表...", ephemeral=False)
+            await interaction.response.send_message("📡 正在過濾並獲取最新 VCT 【頂級一級賽事】 賽程表...", ephemeral=False)
 
         try:
             url = "https://vlrggapi.vercel.app/match?q=upcoming"
@@ -249,45 +248,76 @@ class EsportsModal(Modal, title='📺 查詢 VCT 電競賽程'):
             if res.status_code == 200 and res.json().get('data'):
                 all_matches = res.json()['data'].get('segments', [])
                 
-                # 篩選邏輯
-                # 篩選邏輯
+                # 🌟 定義 Tier 1 (頂級賽事) 的關鍵字白名單
+                tier1_keywords = ["masters", "champions", "pacific", "americas", "emea", "china"]
+                
                 filtered_matches = []
                 for match in all_matches:
-                    
-                    # 🌟 【新增這行】把 VLR.gg 傳來的原始資料印在 Render 的日誌裡！
-                    print(f"DEBUG 賽事原始資料: {match}")
-                    
+                    raw_event = match.get('match_event', '').lower()
                     t1 = match.get('team1', 'TBD').lower()
                     t2 = match.get('team2', 'TBD').lower()
                     
-                    # 如果使用者有輸入關鍵字，就進行模糊比對；如果沒輸入，直接全收
-                    if not search_team or (search_team in t1 or search_team in t2):
-                        filtered_matches.append(match)
+                    if search_team:
+                        # 情況 A：玩家有輸入隊伍，進行全庫搜尋 (確保二級隊伍也搜得到)
+                        if search_team in t1 or search_team in t2:
+                            filtered_matches.append(match)
+                    else:
+                        # 情況 B：玩家沒輸入隊伍，只顯示包含 Tier 1 關鍵字，且「不包含」挑戰者聯賽的頂級賽事
+                        is_tier1 = any(kw in raw_event for kw in tier1_keywords)
+                        if is_tier1 and "challengers" not in raw_event and "game changers" not in raw_event:
+                            filtered_matches.append(match)
                 
                 if not filtered_matches:
-                    await interaction.followup.send(f"❌ 抱歉，在近期即將開打的賽程中，找不到與「{self.team_input.value}」相關的比賽。")
+                    msg = f"❌ 抱歉，找不到與「{self.team_input.value}」相關的比賽。" if search_team else "❌ 目前近期內沒有即將開打的 VCT 頂級一級賽事。"
+                    await interaction.followup.send(msg)
                     return
 
-                # 最多只顯示前 5 場，避免洗版
                 display_matches = filtered_matches[:5]
                 
                 embed = discord.Embed(
-                    title="📺 VCT 職業賽賽程表" if not search_team else f"📺 【{self.team_input.value.upper()}】 專屬賽程篩選結果",
+                    title="📺 VCT 頂級職業賽程表" if not search_team else f"📺 【{self.team_input.value.upper()}】 專屬賽程篩選結果",
                     description="資料即時連線自 VLR.gg 數據庫",
                     color=0x9b59b6
                 )
                 
+                def translate_terms(text):
+                    terms = {
+                        "Masters": "大師賽",
+                        "Champions": "世界冠軍賽",
+                        "Challengers": "挑戰者聯賽",
+                        "Playoffs": "季後賽",
+                        "Group Stage": "小組賽",
+                        "Swiss Stage": "瑞士輪",
+                        "Regular Phase": "例行賽",
+                        "Upper Semifinals": "勝部準決賽",
+                        "Lower Semifinals": "敗部準決賽",
+                        "Grand Final": "總決賽",
+                        "Kickoff": "啟動賽",
+                        "Pacific": "太平洋賽區",
+                        "Americas": "美洲賽區",
+                        "EMEA": "歐洲賽區",
+                        "China": "中國賽區",
+                        "Week": "第",
+                        "Round": "第",
+                        "Stage": "階段"
+                    }
+                    for eng, chi in terms.items():
+                        text = text.replace(eng, chi)
+                    return text
+
                 for match in display_matches:
                     team1 = match.get('team1', 'TBD')
                     team2 = match.get('team2', 'TBD')
                     
-                    # 🌟 關鍵修復：換成正確的 API 標籤名稱，並加上比賽階段 (series)
-                    event = match.get('match_event', '未知賽事')
-                    series = match.get('match_series', '')
-                    time_info = match.get('time_until_match', '時間未定')
+                    raw_event = match.get('match_event', '未知賽事')
+                    raw_series = match.get('match_series', '')
                     
-                    # 將賽事名稱與階段組合在一起顯示
+                    event = translate_terms(raw_event)
+                    series = translate_terms(raw_series)
                     event_display = f"{event} - {series}" if series else event
+                    
+                    raw_time = match.get('time_until_match', '時間未定')
+                    time_info = raw_time.replace('from now', '後開打').replace('d', '天').replace('h', '小時').replace('m', '分鐘')
                     
                     embed.add_field(
                         name=f"⚔️ {team1}  vs  {team2}",
