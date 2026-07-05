@@ -57,23 +57,6 @@ async def on_message(message):
     if "VAN9001" in message.content or "防作弊" in message.content:
         await message.channel.send("又是 Vanguard 搞鬼嗎？重開機治百病啦！")
 
-    # 關鍵字 3：【方法一】文字 + 網路圖片 (GIF動圖)
-    if "傻逼" in message.content:
-        # 1. 建立一個乾淨的無字框架
-        embed = discord.Embed()
-        # 2. 把你的 GIF 網址塞進這個框架的圖片區
-        embed.set_image(url="https://media1.giphy.com/media/v1.Y2lkPTZjMDliOTUyazNudzN4dWFpbzJjZjRvem13Znc3MWFzcHB5cTc4cTAwZWdhcW5taiZlcD12MV9naWZzX3NlYXJjaCZjdD1n/TKa7fQzChHylCQ89to/200w.gif")
-        
-        # 3. 發送文字，並且「同時」附上這個乾淨的圖片框架！
-        await message.channel.send("誰在找jayyyy", embed=embed)
-    if "憨仔" in message.content:
-        # 1. 建立一個乾淨的無字框架
-        embed = discord.Embed()
-        # 2. 把你的 GIF 網址塞進這個框架的圖片區
-        embed.set_image(url="https://s1.aigei.com/src/img/gif/46/46a1b81cde50407982da18d76b651dcf.gif?e=2051020800&token=P7S2Xpzfz11vAkASLTkfHN7Fw-oOZBecqeJaxypL:K5m3jpqMlPrNV-mjz5ONf9znTOw=")
-        
-        # 3. 發送文字，並且「同時」附上這個乾淨的圖片框架！
-        await message.channel.send("除聖傑說柯柏宏是憨仔", embed=embed)
 
     # ⚠️ 最重要的一行：確保機器人處理完關鍵字後，不會忘記執行 ! 開頭的指令
     await bot.process_commands(message)
@@ -225,7 +208,7 @@ class RankModal(Modal, title='🏆 查詢目前牌位'):
             await interaction.followup.send(f"⚠️ 查詢失敗。")
 
 
-# --- 模組 B：終極按鈕主選單 ---
+# --- 模組 B：按鈕主選單 ---
 class ValoMenu(View):
     def __init__(self):
         super().__init__(timeout=None) 
