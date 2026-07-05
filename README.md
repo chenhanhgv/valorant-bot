@@ -78,12 +78,14 @@ python val_bot.py
 
 ## 📂 專案結構
 
+```
 valorant-bot/
-├── val_bot.py          主程式：機器人核心邏輯與所有功能模組
-├── draw_radar.py        雷達圖繪製輔助模組
-├── draw_practice.py     圖表繪製練習
-├── requirements.txt      專案依賴套件清單
-└── .gitignore            Git 忽略清單（保護 .env 等敏感檔案）
+├── val_bot.py          # 主程式：機器人核心邏輯與所有功能模組
+├── draw_radar.py        # 雷達圖繪製輔助模組
+├── draw_practice.py     # 圖表繪製練習
+├── requirements.txt      # 專案依賴套件清單
+└── .gitignore            # Git 忽略清單（保護 .env 等敏感檔案）
+```
 
 ## 📌 未來規劃 (Roadmap)
 
