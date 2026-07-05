@@ -54,8 +54,10 @@
 
 1. Clone 專案：
 
+```bash
 git clone https://github.com/chenhanhgv/valorant-bot.git
 cd valorant-bot
+```
 
 2. 安裝依賴套件：
 
@@ -65,8 +67,10 @@ pip install -r requirements.txt
 
 在專案根目錄建立 .env 檔案，內容如下：
 
+```
 DISCORD_TOKEN=你的Discord Bot Token
 VALORANT_API_KEY=你的HenrikDev API Key
+```
 
 4. 執行機器人：
 
